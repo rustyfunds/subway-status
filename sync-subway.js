@@ -8,6 +8,7 @@
 //
 // Usage: node sync-subway.js
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { loadData, STATION_BY_ID, DEFAULT_STATION_IDS } = require("./subway-core.js");
@@ -36,12 +37,20 @@ async function main() {
   fs.writeFileSync(HTML_PATH, page);
 
   // claude.ai wraps the page in its own document; elsewhere it needs a real head.
-  const headEnd = page.indexOf("</style>") + "</style>".length;
+  // Hosts cache files for a while, so the script link carries a content hash to keep
+  // a new page from running with an old copy of subway-core.js.
+  const coreHash = crypto
+    .createHash("sha1")
+    .update(fs.readFileSync(path.join(__dirname, "subway-core.js")))
+    .digest("hex")
+    .slice(0, 10);
+  const standalone = page.replace('src="subway-core.js"', `src="subway-core.js?v=${coreHash}"`);
+  const headEnd = standalone.indexOf("</style>") + "</style>".length;
   fs.writeFileSync(
     STANDALONE_PATH,
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-      `${page.slice(0, headEnd)}\n</head>\n<body>${page.slice(headEnd)}</body>\n</html>\n`
+      `${standalone.slice(0, headEnd)}\n</head>\n<body>${standalone.slice(headEnd)}</body>\n</html>\n`
   );
 
   const trains = Object.values(data.arrivals).flatMap((byDir) => Object.values(byDir)).flat().length;
