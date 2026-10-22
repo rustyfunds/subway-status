@@ -10,7 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { loadData } = require("./subway-core.js");
+const { loadData, STATION_BY_ID, DEFAULT_STATION_IDS } = require("./subway-core.js");
 
 const HTML_PATH = path.join(__dirname, "subway-status.html");
 const STANDALONE_PATH = path.join(__dirname, "index.html");
@@ -18,7 +18,9 @@ const START = "<!-- ===SUBWAY-SYNC-START=== -->";
 const END = "<!-- ===SUBWAY-SYNC-END=== -->";
 
 async function main() {
-  const data = await loadData(fetch);
+  // Train times are saved for the default stations only; alerts cover every line.
+  const stops = DEFAULT_STATION_IDS.flatMap((id) => STATION_BY_ID.get(id).stops);
+  const data = await loadData(fetch, {}, stops);
   for (const f of data.failed) console.warn(`Could not load ${f.source}: ${f.error}`);
   if (!data.alertsAt) throw new Error("MTA service alerts could not be loaded; page left unchanged");
 
