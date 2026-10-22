@@ -37,14 +37,12 @@ async function main() {
   fs.writeFileSync(HTML_PATH, page);
 
   // claude.ai wraps the page in its own document; elsewhere it needs a real head.
-  // Hosts cache files for a while, so the script link carries a content hash to keep
-  // a new page from running with an old copy of subway-core.js.
-  const coreHash = crypto
-    .createHash("sha1")
-    .update(fs.readFileSync(path.join(__dirname, "subway-core.js")))
-    .digest("hex")
-    .slice(0, 10);
-  const standalone = page.replace('src="subway-core.js"', `src="subway-core.js?v=${coreHash}"`);
+  // Hosts cache files for a while, so each script link carries a content hash to keep
+  // a new page from running with old copies of its modules.
+  const standalone = page.replace(/src="([\w-]+\.js)"/g, (_, file) => {
+    const hash = crypto.createHash("sha1").update(fs.readFileSync(path.join(__dirname, file))).digest("hex").slice(0, 10);
+    return `src="${file}?v=${hash}"`;
+  });
   const headEnd = standalone.indexOf("</style>") + "</style>".length;
   fs.writeFileSync(
     STANDALONE_PATH,
