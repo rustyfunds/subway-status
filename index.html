@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC Subway Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: masthead with a countdown-clock panel, a four-up station summary, then per station a platform sign, its countdown board and a line-status board */
+:root {
+  --bg: #EDEFF2;
+  --surface: #FFFFFF;
+  --fg: #14171B;
+  --muted: #5A626C;
+  --rule: #D7DCE2;
+  --sign: #0B0C0E;
+  --sign-fg: #FFFFFF;
+  --sign-muted: #A3AAB3;
+  --sign-edge: #0B0C0E;
+  --sign-rule: #2A2E34;
+  --led: #FFB547;
+  --live: #3BD07F;
+  --accent: #0062CF;
+  --accent-soft: #E1ECFA;
+  --sev-ok: #17784A;
+  --sev-info: #4A5A6E;
+  --sev-change: #9A5800;
+  --sev-delay: #C03F0C;
+  --sev-stop: #B42318;
+  --sev-off: #6A727B;
+
+  --font-sans: "Helvetica Neue", Helvetica, Arimo, Arial, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D0F12;
+    --surface: #16191E;
+    --fg: #E5E8EC;
+    --muted: #98A0AA;
+    --rule: #292E35;
+    --sign: #000000;
+    --sign-fg: #FFFFFF;
+    --sign-muted: #98A0AA;
+    --sign-edge: #2C3138;
+    --sign-rule: #23272D;
+    --led: #FFB547;
+    --live: #3BD07F;
+    --accent: #6CA8FF;
+    --accent-soft: #142740;
+    --sev-ok: #4CC38A;
+    --sev-info: #9EABBD;
+    --sev-change: #E9A23B;
+    --sev-delay: #FA8247;
+    --sev-stop: #F36B5F;
+    --sev-off: #8C949E;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D0F12;
+  --surface: #16191E;
+  --fg: #E5E8EC;
+  --muted: #98A0AA;
+  --rule: #292E35;
+  --sign: #000000;
+  --sign-fg: #FFFFFF;
+  --sign-muted: #98A0AA;
+  --sign-edge: #2C3138;
+  --sign-rule: #23272D;
+  --led: #FFB547;
+  --live: #3BD07F;
+  --accent: #6CA8FF;
+  --accent-soft: #142740;
+  --sev-ok: #4CC38A;
+  --sev-info: #9EABBD;
+  --sev-change: #E9A23B;
+  --sev-delay: #FA8247;
+  --sev-stop: #F36B5F;
+  --sev-off: #8C949E;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p { margin: 0; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+a { color: var(--accent); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Masthead */
+.masthead { display: grid; gap: 20px; align-items: end; }
+@media (min-width: 760px) { .masthead { grid-template-columns: minmax(0, 1fr) auto; } }
+.masthead-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.eyebrow, .section-label, .board-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+.lede { color: var(--muted); max-width: 62ch; text-wrap: pretty; }
+
+.clock {
+  background: var(--sign);
+  border: 1px solid var(--sign-edge);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.clock-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 20px; }
+.clock-label {
+  color: var(--sign-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.clock-value {
+  font-family: var(--font-data);
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--led);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--led) 40%, transparent);
+  white-space: nowrap;
+}
+.clock-age { color: var(--sign-muted); font-size: 0.75rem; margin-left: 8px; text-shadow: none; font-family: var(--font-sans); }
+.clock-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sign-rule);
+  color: var(--sign-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.clock-mode .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sign-muted); flex: none; }
+.clock-mode.live { color: var(--sign-fg); }
+.clock-mode.live .dot { background: var(--live); animation: pulse 2s ease-out infinite; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 70%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--sev-change) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--sev-change) 35%, transparent);
+  font-size: var(--step--1);
+  max-width: 80ch;
+}
+.notice svg { color: var(--sev-change); flex: none; width: 14px; height: 14px; margin-top: 3px; }
+
+/* Summary */
+.overview { display: flex; flex-direction: column; gap: 12px; }
+.summary { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 520px) { .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .summary { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.summary-card:hover { border-color: color-mix(in srgb, var(--fg) 45%, transparent); }
+.summary-head { display: flex; flex-direction: column; gap: 2px; }
+.summary-name { font-weight: 700; font-size: var(--step-1); line-height: 1.2; letter-spacing: -0.01em; }
+.borough {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.summary-lines { display: flex; flex-wrap: wrap; gap: 8px 6px; }
+.mini { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.mini .mark { display: inline-flex; color: var(--sev); }
+.mini .mark svg { width: 10px; height: 10px; }
+.summary-text { margin-top: auto; font-size: var(--step--1); color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--step--1); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 11px; height: 11px; color: var(--sev); }
+
+/* Stations: sign, countdown board, line board */
+.stations { display: flex; flex-direction: column; gap: 32px; }
+.station { scroll-margin-top: calc(16px + env(safe-area-inset-top, 0px)); }
+.sign {
+  position: relative;
+  background: var(--sign);
+  color: var(--sign-fg);
+  border: 1px solid var(--sign-edge);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px 20px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.sign::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 2px;
+  background: var(--sign-fg);
+}
+.sign-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sign-name {
+  font-size: clamp(1.5rem, 3.6vw, 2.125rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.sign .borough { color: var(--sign-muted); }
+.sign-bullets { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.countdown {
+  background: var(--sign);
+  color: var(--sign-fg);
+  border: 1px solid var(--sign-edge);
+  border-top: 0;
+  padding: 4px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.countdown-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sign-fg);
+  padding-top: 12px;
+  border-top: 1px solid var(--sign-rule);
+}
+.platforms { display: flex; flex-direction: column; gap: 16px; }
+.platform-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px 32px; }
+@media (min-width: 620px) { .platform-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.platform { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.platform-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.platform-dir {
+  color: var(--sign-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.platform-lines { display: flex; gap: 4px; }
+.trains { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.train {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-data);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--led);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--led) 35%, transparent);
+}
+.train .bullet { text-shadow: none; }
+.train .dest { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.train .mins { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.train.scheduled { opacity: 0.6; }
+.board-empty, .board-note { color: var(--sign-muted); font-size: var(--step--1); }
+
+.board {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.board-title { padding: 14px 20px 0; }
+.lines { list-style: none; margin: 0; padding: 0; }
+.line {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--rule);
+}
+.line:first-child { border-top: 0; }
+.line-body { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-height: 34px; }
+.status-label { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; color: var(--sev); }
+.status-label svg { width: 12px; height: 12px; flex: none; }
+.status-note { color: var(--muted); font-size: var(--step--1); }
+
+.alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.alert { display: flex; flex-direction: column; gap: 4px; padding-left: 12px; border-left: 3px solid var(--sev); min-width: 0; }
+.alert-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.alert-type { color: var(--sev); }
+.alert-kind::before { content: "\00B7"; margin-right: 8px; }
+.tag { color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; }
+.alert-head { line-height: 1.45; text-wrap: pretty; overflow-wrap: anywhere; }
+.alert-when { font-size: var(--step--1); color: var(--muted); }
+.time { font-family: var(--font-data); font-weight: 500; font-size: 0.78rem; color: var(--fg); font-variant-numeric: tabular-nums; }
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--accent);
+}
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+details[open] > summary::before { transform: rotate(45deg); }
+.fold > .alerts { margin-top: 12px; }
+.desc { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: var(--step--1); max-width: 70ch; overflow-wrap: anywhere; }
+.desc-label { font-weight: 700; margin-top: 4px; }
+
+/* Line bullets and inline glyphs */
+.bullet {
+  --size: 34px;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: calc(var(--size) * 0.6);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background: var(--line-bg);
+  color: var(--line-fg);
+}
+.bullet.sm { --size: 24px; }
+.bullet.xs { --size: 18px; }
+.mini .bullet.sm { --size: 26px; }
+.bullet.long { font-size: calc(var(--size) * 0.36); letter-spacing: 0; }
+.bullet.express { border-radius: 2px; transform: rotate(45deg) scale(0.78); }
+.bullet.express > span { transform: rotate(-45deg); }
+.bullet.inline { width: 1.45em; height: 1.45em; font-size: 0.78em; margin: 0 0.08em; }
+.bullet.inline.long { font-size: 0.5em; width: 2.3em; height: 2.3em; }
+.glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 3px;
+  vertical-align: -0.2em;
+  margin: 0 0.1em;
+}
+.glyph svg { width: 82%; height: 82%; fill: currentColor; }
+.glyph.accessible { background: var(--accent); color: var(--surface); }
+.glyph.bus { background: var(--muted); color: var(--surface); }
+
+.footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--step--1);
+  color: var(--muted);
+  max-width: 76ch;
+}
+
+@media (max-width: 480px) {
+  .sign { padding: 22px 14px 14px; }
+  .countdown { padding: 4px 14px 16px; }
+  .board-title { padding: 12px 14px 0; }
+  .line { padding: 12px 14px; gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  details > summary::before, .summary-card { transition: none; }
+  .clock-mode.live .dot { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">MTA service status</p>
+      <h1>NYC Subway Status</h1>
+      <p class="lede" id="lede">Next trains and line status at your stations.</p>
+    </div>
+    <div class="clock" role="group" aria-label="Data times">
+      <div class="clock-row">
+        <span class="clock-label">Now</span>
+        <span class="clock-value" id="now-time">–</span>
+      </div>
+      <div class="clock-row">
+        <span class="clock-label">MTA data from</span>
+        <span class="clock-value"><span id="fetched-time">–</span><span class="clock-age" id="fetched-age"></span></span>
+      </div>
+      <div class="clock-mode" id="mode" role="status"><span class="dot"></span><span id="mode-text">Connecting to the MTA…</span></div>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+
+  <section class="overview" aria-labelledby="overview-label">
+    <h2 class="section-label" id="overview-label">At your stations</h2>
+    <nav class="summary" id="summary" aria-label="Stations"></nav>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <div class="stations" id="stations"></div>
+
+  <footer class="footer">
+    <p>Train times and service alerts come from the MTA's real-time feeds. All times are New York time.</p>
+    <p>Opened in a regular web browser, this page reloads MTA data every minute and updates the countdowns every 15 seconds. Copies that can't reach the MTA directly, such as the one on claude.ai, show the last saved snapshot instead.</p>
+    <p>Dimmed train times are scheduled trips that haven't been assigned a train yet. "At this station" means the MTA lists this station on the alert, and "Whole line" alerts apply everywhere on the line. "Not running now" follows the MTA's normal service hours, which are approximate and don't account for holidays.</p>
+  </footer>
+</div>
+
+<!-- ===SUBWAY-SYNC-START=== -->
+<script id="subway-data" type="application/json">{"fetchedAt":1792649521,"alertsAt":1792649521,"arrivalsAt":1792649521,"failed":[],"hours":{"exceptLateNights":{"note":"Runs here at all times except late nights (about midnight to 6 AM).","windows":[{"days":"0123456","from":"06:00","to":"24:00"}]},"daily6to11":{"note":"Runs daily, about 6 AM to 11 PM.","windows":[{"days":"0123456","from":"06:00","to":"23:00"}]},"weekdaysExceptLateNights":{"note":"Runs weekdays only, except late nights (about midnight to 6 AM).","windows":[{"days":"12345","from":"06:00","to":"24:00"}]},"weekdaysDaytime":{"note":"Reaches Brooklyn on weekday daytimes only (about 6 AM to 9 PM). Other times it ends at Bowling Green.","windows":[{"days":"12345","from":"06:00","to":"21:00"}]},"rushHoursOnly":{"note":"Runs weekday rush hours only: about 7 to 8:15 AM toward Manhattan and 4:30 to 5:45 PM away from it.","windows":[{"days":"12345","from":"07:00","to":"08:15"},{"days":"12345","from":"16:30","to":"17:45"}]}},"stations":[{"id":"fulton","name":"Fulton St","borough":"Manhattan","lines":["2","3","4","5","A","C","J","Z"],"platforms":[{"stop":"229","lines":["2","3"],"N":"Uptown","S":"Brooklyn"},{"stop":"418","lines":["4","5"],"N":"Uptown","S":"Downtown"},{"stop":"A38","lines":["A","C"],"N":"Uptown","S":"Brooklyn"},{"stop":"M22","lines":["J","Z"],"N":"Brooklyn","S":"Downtown"}],"hours":{"3":"exceptLateNights","5":"exceptLateNights","C":"daily6to11","Z":"rushHoursOnly"},"stops":["229","418","A38","M22"]},{"id":"atlantic","name":"Atlantic Av-Barclays Ctr","borough":"Brooklyn","lines":["2","3","4","5","B","D","N","Q","R"],"platforms":[{"stop":"235","lines":["2","3","4","5"],"N":"Manhattan","S":"Away from Manhattan"},{"stop":"D24","lines":["B","Q"],"N":"Manhattan","S":"Away from Manhattan"},{"stop":"R31","lines":["D","N","R"],"N":"Manhattan","S":"Away from Manhattan"}],"hours":{"3":"exceptLateNights","5":"weekdaysDaytime","B":"weekdaysExceptLateNights"},"stops":["235","D24","R31"]},{"id":"grand-central","name":"Grand Central-42 St","borough":"Manhattan","lines":["4","5","6","7","S"],"platforms":[{"stop":"631","lines":["4","5","6"],"N":"Uptown","S":"Downtown"},{"stop":"723","lines":["7"],"N":"Queens","S":"Hudson Yards"},{"stop":"901","lines":["S"],"N":"Times Square"}],"hours":{"5":"exceptLateNights","S":"exceptLateNights"},"stops":["631","723","901"]},{"id":"flushing","name":"Flushing-Main St","borough":"Queens","lines":["7"],"platforms":[{"stop":"701","lines":["7"],"S":"Manhattan"}],"hours":{},"stops":["701"]}],"alerts":[{"id":"lmm:planned_work:35729","kind":"planned","type":"Planned - Part Suspended","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, no [A] between Rockaway Blvd and Ozone Park-Lefferts Blvd","description":"[A] trains run between Inwood-207 St and Far Rockaway-Mott Av.\n\n[shuttle bus icon] Free T366 shuttle buses make stops between Rockaway Blvd and Ozone Park-Lefferts Blvd, stopping at 104 St and 111 St.\nTransfer between [A] and [shuttle bus icon] at Rockaway Blvd.\nWhat's happening?\nWe're modernizing signals\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Nov 2 - 6, Mon to Fri, 10:45 PM to 5:00 AM","updated":1792521808,"periods":[[1793677500,1793700000],[1793763900,1793786400],[1793850300,1793872800]]},{"id":"lmm:planned_work:35657","kind":"planned","type":"Planned - Stops Skipped","lines":["C"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, uptown [C] skips 72 St, 81 St, 86 St, 96 St, 103 St, 110 St and 116 St","description":"For service to these stations, take the [C] to 125 St and transfer to a downtown [C].\n\nFor service from these stations, take the [C] to 59 St-Columbus Circle and transfer to an uptown [C].\n\nSchedule reminder: [C] does not operate overnight.\n\nTravel tip:\nUse nearby [1] stations instead. Transfer between trains at 59 St-Columbus Circle or 168 St.\n\nWhat's happening?\nWe're replacing tracks","when":"Nov 2 - 5 and Nov 9 - 12, Mon to Thu, beginning 10:45 PM","updated":1792510639,"periods":[[1793677500,1793680200],[1793763900,1793766600],[1793850300,1793853000]]},{"id":"lmm:planned_work:35601","kind":"planned","type":"Planned - Part Suspended","lines":["7"],"wholeLine":[],"stopsByLine":{"7":["701"]},"header":"In Queens, no [7] at Flushing-Main St","description":"[7] runs between 34 St-Hudson Yards and Mets-Willets Point, the last stop.\n\n[shuttle bus icon] Free T321 shuttle buses run between Mets-Willets Point and Flushing-Main St.\nTransfer between the [7] and [shuttle bus icon] at Mets-Willets Point.\nNote: [7] service operates every 8 minutes, days and evenings.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 24 - 25, Sat 3:45 AM to Sun 10:00 PM","updated":1792598508,"periods":[[1792827900,1792980000]]},{"id":"lmm:planned_work:35595","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, uptown [A] local skips 72 St, 81 St, 86 St, 96 St, 103 St, 110 St and 116 St","description":"For service to these stations, take the [A] to 125 St and transfer to a downtown [A] local.\n\nFor service from these stations, take the [A] to 59 St-Columbus Circle and transfer to an uptown [A].\n\nSchedule reminder: [A] skips these stations days and evenings.\n\nTravel tip:\nUse nearby [1] stations instead. Transfer between trains at 59 St-Columbus Circle or 168 St.\n\nWhat's happening?\nWe're replacing tracks","when":"Oct 19 - Nov 13, Mon to Fri, 11:15 PM to 5:00 AM","updated":1792510677,"periods":[[1792638900,1792659600],[1792725300,1792746000],[1793070900,1793091600],[1793157300,1793178000],[1793243700,1793264400],[1793330100,1793350800],[1793679300,1793700000],[1793765700,1793786400],[1793852100,1793872800]]},{"id":"lmm:planned_work:35402","kind":"planned","type":"Planned - Part Suspended","lines":["4","6"],"wholeLine":[],"stopsByLine":{"4":["631","418","235"],"6":["631","418","235"]},"header":"No [4] between Grand Central-42 St, Manhattan and Utica Av/New Lots Av, Brooklyn\nNo [6] between Grand Central-42 St and Brooklyn Bridge-City Hall","description":"[4] [6] trains run local between the Bronx and Grand Central-42 St, the last stop.\n\n[3] trains replace [4] service in Brooklyn.\n\nTravel alternatives:\nFor 33 St, 28 St, 23 St, 14 St-Union Sq, Astor Pl, Bleecker St, Spring St, Canal St, Brooklyn Bridge-City Hall, use nearby [N][Q][R] stations.\n\nFor Fulton St, Wall St and Bowling Green, use nearby [J] or [N][R] stations.\n\nFor service between Manhattan and Brooklyn, take the [N] or [Q].\n\nFor service between Borough Hall and Franklin Av-Medgar Evers College, take the [2] or [3].\nTake the [3] between Franklin Av-Medgar Evers College and New Lots Av.\n\nTransfer stations:\nLexington Av/59 St [4][6][N]\nGrand Central-42 St [accessibility icon] | [4][6] and [7][S] to/from Times Sq-42 St\nTimes Sq-42 St [accessibility icon] | [2][3][7][S][N][Q]\n34 St-Herald Sq [accessibility icon] | [D][F][N][Q]\nFulton St [accessibility icon] | [2][3][J]\nAtlantic Av-Barclays Ctr [accessibility icon] (D, N) | [2][3][D][N][Q]\nFranklin Av-Medgar Evers College [2][3]\nWhat's happening?\nFastrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Nov 2 - 6 and Nov 9 - 13, Mon to Fri, 9:30 PM to 5:00 AM","updated":1791892646,"periods":[[1793673000,1793700000],[1793759400,1793786400],[1793845800,1793872800]]},{"id":"lmm:planned_work:35401","kind":"planned","type":"Extra Service","lines":["3"],"wholeLine":[],"stopsByLine":{"3":["235","229"]},"header":"In Brooklyn, extended late night [3] replaces [4] service to/from New Lots Av","description":"Schedule reminder: [3] runs to/from New Lots Av days and evenings.\n\nWhat's happening?\n[3] provides alternate service in Brooklyn during planned work on the [4] line.","when":"Nov 2 - 6 and Nov 9 - 13, Mon to Fri, 9:30 PM to 5:00 AM","updated":1791892634,"periods":[[1793673000,1793700000],[1793759400,1793786400],[1793845800,1793872800]]},{"id":"lmm:planned_work:35400","kind":"planned","type":"Planned - Part Suspended","lines":["5"],"wholeLine":[],"stopsByLine":{"5":["631","418"]},"header":"[5] service ends early between Bowling Green, Manhattan and E 180 St, Bronx","description":"[5] trains run between Eastchester-Dyre Av and E 180 St.\n\n[2] trains make [5] stops between E 180 St and 149 St-Hostos.\n[4] trains make [5] stops between 149 St-Hostos and Bowling Green.\nTransfer between trains at E 180 St [accessibility icon] | [2][5] and/or 149 St-Hostos [accessibility icon] | [2][4].\nApproximate final departures:\nThe last Manhattan-bound [5] departs E 180 St at 8:25 PM and 3 Av-149 St at 8:35 PM.\nThe last Bronx-bound [5] departs Bowling Green at 9:20 PM and Grand Central-42 St at 9:35 PM.\n\nWhat's happening?\nFastrack maintenance","when":"Nov 2 - 5 and Nov 9 - 12, Mon to Thu, beginning 8:15 PM","updated":1791892657,"periods":[[1793668500,1793678400],[1793754900,1793764800],[1793841300,1793851200]]},{"id":"lmm:planned_work:35399","kind":"planned","type":"Extra Service","lines":["S"],"wholeLine":[],"stopsByLine":{"S":["901"]},"header":"[S] 42 Street Shuttle service runs overnight","description":"What's happening?\nWe're providing additional service for customers during planned work.","when":"Nov 3 - 6 and Nov 10 - 13, Tue to Fri, 12:01 AM to 6:00 AM","updated":1791892668,"periods":[[1793682060,1793703600],[1793768460,1793790000],[1793854860,1793876400]]},{"id":"lmm:planned_work:35397","kind":"planned","type":"Planned - Stops Skipped","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Woodlawn-bound [4] skips 170 St, Mt Eden Av and 176 St\nAll trains board from the Manhattan-bound platform at Burnside Av","description":"For service to these stations, take the [4] to Burnside Av and transfer to a Manhattan-bound train.\n\nFor service from these stations, take the [4] to 167 St and transfer to a Woodlawn-bound train.\n\nTravel tip:\nFor service from 176 St, take the Bx32 bus days and evenings and transfer to the [4] at Burnside Av.\n\nNote: Through December 2026, Woodlawn-bound [4] skips Burnside Av, except Nov 3 - 6 and Nov 10 - 13, Tue to Fri, 9:45 AM to 3:00 PM.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Nov 3 - 6 and Nov 10 - 13, Tue to Fri, 9:45 AM to 3:00 PM","updated":1791902739,"periods":[[1793717100,1793736000],[1793803500,1793822400]]},{"id":"lmm:planned_work:35360","kind":"planned","type":"Planned - Part Suspended","lines":["D"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, no [D] at Norwood-205 St","description":"[D] runs between Coney Island-Stillwell Av and Bedford Park Blvd, the last stop.\n\n[shuttle bus icon] Free shuttle buses run between Bedford Park Blvd and Norwood-205 St.\nTransfer between [D] and [shuttle bus icon] at Bedford Park Blvd.\nWhat's happening?\nTrack maintenance","when":"Nov 2 - 4, Mon to Wed, 11:45 PM to 5:00 AM","updated":1791315141,"periods":[[1793681100,1793700000],[1793767500,1793786400]]},{"id":"lmm:planned_work:35359","kind":"planned","type":"Reduced Service","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Upper Manhattan, [A] runs every 30 minutes between Inwood-207 St and 168 St","description":"[A] service runs in two sections:\n1. Between Inwood-207 St and 168 St\n2. Between 168 St and Ozone Park-Lefferts Blvd/Far Rockaway-Mott Av\nTransfer at 168 St [accessibility icon] to continue your trip.\nWhat's happening?\nTrack maintenance","when":"Nov 3 - 6, Tue to Fri, 12:01 AM to 5:00 AM","updated":1791315163,"periods":[[1793682060,1793700000],[1793768460,1793786400],[1793854860,1793872800]]},{"id":"lmm:planned_work:35355","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Manhattan-bound [A] local skips Kingston-Throop Avs, Franklin Av, Clinton-Washington Avs and Lafayette Av","description":"For service to these stations, take the [A] to Nostrand Av or Hoyt-Schermerhorn Sts and transfer to a Queens-bound train.\n\nFor service from these stations, take a Queens-bound train to Nostrand Av or Utica Av [accessibility icon] and transfer to a Manhattan-bound [A].\n\nWhat's happening?\nStation maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Nov 2 - 6, Mon to Fri, 11:15 PM to 5:00 AM","updated":1791315277,"periods":[[1793679300,1793700000],[1793765700,1793786400],[1793852100,1793872800]]},{"id":"lmm:planned_work:35337","kind":"planned","type":"Planned - Stops Skipped","lines":["D"],"wholeLine":[],"stopsByLine":{},"header":"In Upper Manhattan, downtown [D] skips 155 St\nAll trains at 145 St board from the uptown platform","description":"For service to this station, take the [D] to 145 St and transfer to a Norwood-bound [D].\n\nFor service from this station, take the [D] to 161 St-Yankee Stadium and transfer to a Manhattan-bound [D].\n\nWhat's happening?\nWe're making electrical improvements","when":"Oct 23 - 26, Fri 11:45 PM to Mon 5:00 AM","updated":1791298790,"periods":[[1792813500,1793005200]]},{"id":"lmm:planned_work:35336","kind":"planned","type":"Planned - Express to Local","lines":["J"],"wholeLine":[],"stopsByLine":{"J":["M22"]},"header":"[J] express trains make local stops in both directions at Hewes St, Lorimer St and Flushing Av","description":"What's happening?\nWe're replacing tracks","when":"Nov 3 - 6, Nov 10 - 13, and Nov 17 - 20, Tue to Fri, 10:00 AM to 3:00 PM (except Thu, Nov 12)","updated":1792155854,"periods":[[1793718000,1793736000],[1793804400,1793822400]]},{"id":"lmm:planned_work:35334","kind":"planned","type":"Planned - Stops Skipped","lines":["R"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Manhattan-bound [R] skips 25 St, Prospect Av, 4 Av-9 St and Union St","description":"For service to these stations, take the [R] to Atlantic Av-Barclays Ctr and transfer to a local Coney Island-bound [D] or [N] or Bay Ridge-bound [R]\n\nFor service from these stations, take the [D][N] or [R] to 36 St and transfer to a Manhattan-bound [R].\n\nWhat's happening?\nWe're replacing tracks","when":"Nov 2 - 6, Mon to Fri, 11:45 PM to 5:00 AM","updated":1791383060,"periods":[[1793681100,1793700000],[1793767500,1793786400],[1793853900,1793872800]]},{"id":"lmm:planned_work:35333","kind":"planned","type":"Planned - Stops Skipped","lines":["N"],"wholeLine":[],"stopsByLine":{"N":["R31"]},"header":"In Brooklyn, Manhattan-bound [N] local skips 25 St, Prospect Av, 4 Av-9 St and Union St","description":"For service to these stations, take the [N] to Atlantic Av-Barclays Ctr and transfer to a local Coney Island-bound [D]  or [N] or Bay Ridge-bound [R].\n\nFor service from these stations, take the [D][N] or [R] to 36 St and transfer to a Manhattan-bound [N].\n\nSchedule reminder: [N] skips these stations days and evenings.\n\nWhat's happening?\nWe're replacing tracks","when":"Nov 2 - 6, Mon to Fri, 11:45 PM to 5:00 AM","updated":1791300602,"periods":[[1793681100,1793700000],[1793767500,1793786400],[1793853900,1793872800]]},{"id":"lmm:planned_work:35332","kind":"planned","type":"Planned - Stops Skipped","lines":["D"],"wholeLine":[],"stopsByLine":{"D":["R31"]},"header":"In Brooklyn, Manhattan-bound [D] local skips 25 St, Prospect Av, 4 Av-9 St and Union St","description":"For service to these stations, take the [D] to Atlantic Av-Barclays Ctr and transfer to a local Coney Island-bound [D] or [N] or Bay Ridge-bound [R].\n\nFor service from these stations, take the [D][N] or [R] to 36 St and transfer to a Manhattan-bound [D].\n\nSchedule reminder: [D] skips these stations days and evenings.\n\nWhat's happening?\nWe're replacing tracks","when":"Nov 2 - 6, Mon to Fri, 11:45 PM to 5:00 AM","updated":1791300581,"periods":[[1793681100,1793700000],[1793767500,1793786400],[1793853900,1793872800]]},{"id":"lmm:planned_work:35325","kind":"planned","type":"Planned - Stops Skipped","lines":["5"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Manhattan-bound [5] skips Baychester Av, Gun Hill Rd and Morris Park","description":"For service to these stations, take the [5] to Pelham Pkwy or E 180 St [accessibility icon] and transfer to a Dyre Av-bound [5].\n\nFor service from these stations, take the [5] to Pelham Pkwy or Eastchester-Dyre Av and transfer to a Manhattan-bound [5].\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Nov 3 - 5, Tue to Thu, 9:45 AM to 3:00 PM","updated":1791376139,"periods":[[1793717100,1793736000],[1793803500,1793822400]]},{"id":"lmm:planned_work:35324","kind":"planned","type":"Planned - Stops Skipped","lines":["2","5"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, uptown [2][5] skips Jackson Av, Prospect Av, Intervale Av, Simpson St, Freeman St, 174 St and West Farms Sq-E Tremont Av","description":"For service to these stations, take the [2] or [5] to E 180 St [accessibility icon] and transfer to a Manhattan-bound [2] or [5].\n\nFor service from these stations, take the [2] or [5] to 149 St-Hostos [accessibility icon] and transfer to an uptown [2] or [5].\nAll trains at E 180 St board from the downtown platform.\nTravel tip:\nFor service to Jackson Av, Prospect Av, Intervale Av and Simpson St, transfer to the Bx4 bus at 3 Av-149 St [accessibility icon].\n\nWhat's happening?\nSignal maintenance","when":"Nov 4, Wednesday, 10:45 AM to 3:30 PM","updated":1791288673,"periods":[[1793807100,1793824200]]},{"id":"lmm:planned_work:35197","kind":"planned","type":"Planned - Part Suspended","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"No [6] between Hunts Point Av and 125 St","description":"[6] runs in two sections:\n1. Between Brooklyn Bridge-City Hall and 125 St and via the [4] to/from 149 St-Hostos.\n2. Between Hunts Point Av and Pelham Bay Park\n\n[shuttle bus icon] Free T102 shuttle buses make all stops between 125 St and Hunts Point Av.\nTransfer between [6] and [shuttle bus icon] at Hunts Point Av [accessibility icon] and 125 St [accessibility icon]\nNote: Uptown [6] trains skip the 138 St-Grand Concourse [4] station.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 27 - 30, Tue to Fri, 9:30 PM to 5:00 AM","updated":1790791989,"periods":[[1793151000,1793178000],[1793237400,1793264400],[1793323800,1793350800]]},{"id":"lmm:planned_work:35123","kind":"planned","type":"Planned - Stops Skipped","lines":["4","6"],"wholeLine":[],"stopsByLine":{"4":["631"],"6":["631"]},"header":"In Manhattan, downtown [4] local and [6] skip 116 St, 110 St, 103 St, 96 St, 77 St, 68 St and 51 St","description":"For service to these stations, take the [4] or [6] to 59 St or Grand Central-42 St [accessibility icon] and transfer to an uptown [4] local or [6].\n\nFor service from these stations, take the [4] or [6] to 59 St or 125 St [accessibility icon] and transfer to an downtown [4] or [6].\n\nTravel tip:\nTransfer between uptown and downtown trains with fare-capped OMNY at 86 St.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 26 - 27, Mon 9:45 PM to Tue 5:00 AM","updated":1790686825,"periods":[[1793065500,1793091600]]},{"id":"lmm:planned_work:35119","kind":"planned","type":"Planned - Stops Skipped","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Manhattan-bound [6] skips Longwood Av, E 149 St, E 143 St, Cypress Av and Brook Av\nAll trains board from the uptown platform at 3 Av-138 St","description":"For service to these stations, take the [6] to 3 Av-138 St and transfer to a Pelham Bay Park-bound [6].\n\nFor service from these stations, take the [6] to Hunts Point Av [accessibility icon] and transfer to a Manhattan-bound [6].\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 26 - 27, Mon 11:45 PM to Tue 5:00 AM","updated":1790686645,"periods":[[1793072700,1793091600]]},{"id":"lmm:planned_work:35116","kind":"planned","type":"Planned - Stops Skipped","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Woodlawn-bound [4] skips 170 St, Mt Eden Av and 176 St and runs every 16 minutes (days/evenings)","description":"For service to these stations, take the [4] to Burnside Av and transfer to a Manhattan-bound train.\n\nFor service from these stations, take the [4] to 167 St and transfer to a Woodlawn-bound [4].\nAll trains board from the Manhattan-bound platform at Burnside Av during this time.\nTravel tip:\nFor service from 176 St, take the Bx32 bus days and evenings and transfer to the [4] at Burnside Av.\n\nNotes: The last stop for some Woodlawn-bound trains is 149 St-Hostos. Transfer at 149 St-Hostos [accessibility icon] to a Woodlawn-bound [4] to continue your trip.\nThrough December 2026, Woodlawn-bound [4] skips Burnside Av, except Oct 31 - Nov 1 and Nov 7 - 8, Sat 3:45 AM to Sun 10:00 PM.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 31 - Nov 1 and Nov 7 - 8, Sat 3:45 AM to Sun 10:00 PM","updated":1791378850,"periods":[[1793432700,1793588400]]},{"id":"lmm:planned_work:35115","kind":"planned","type":"Reduced Service","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, [6] runs every 8 minutes between 3 Av/138 St and Pelham Bay Park\nThe last stop for some trains from Manhattan is 3 Av/138 St","description":"Transfer at 3 Av-138 St to a Pelham Bay Park-bound [6] to continue your trip.\nWhat's happening?\nSignal maintenance\n\n[accessibility icon] If you're on a train terminating at 3 Av-138 St, an accessible transfer is available at 125 St [accessibility icon] to the next Pelham Bay Park-bound [6].","when":"Oct 28, Wednesday, 9:45 AM to 3:30 PM","updated":1790685000,"periods":[[1793195100,1793215800]]},{"id":"lmm:planned_work:35113","kind":"planned","type":"Planned - Express to Local","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Pelham Bay Park-bound express [6X] runs local from 3 Av-138 St to Parkchester","description":"What's happening?\nSignal maintenance","when":"Oct 28, Wednesday, 1:00 PM to 3:30 PM","updated":1790685011,"periods":[[1793206800,1793215800]]},{"id":"lmm:planned_work:35112","kind":"planned","type":"Planned - Express to Local","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Manhattan-bound express [6X] runs local from Parkchester to 3 Av-138 St","description":"What's happening?\nSignal maintenance","when":"Oct 28, Wednesday, 10:00 AM to 1:00 PM","updated":1790685021,"periods":[[1793196000,1793206800]]},{"id":"lmm:planned_work:35109","kind":"planned","type":"Planned - Part Suspended","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, no [4] service between 161 St-Yankee Stadium and Woodlawn","description":"[4] runs between Crown Heights-Utica Av and 161 St-Yankee Stadium, the last stop.\n\n[shuttle bus icon] Free shuttle buses run between Bedford Park Blvd [D] and Woodlawn, stopping at Mosholu Pkwy and Bedford Park Blvd-Lehman College.\n\nTravel alternatives:\nFor service between 161 St-Yankee Stadium and Bedford Park Blvd-Lehman College, use nearby [D] stations along Grand Concourse instead.\n\nFor Mosholu Pkwy and Woodlawn, take a [shuttle bus icon] shuttle bus.\n\nTransfer stations:\n161 St-Yankee Stadium [4][D]\nBedford Park Blvd [accessibility icon] | [D] [shuttle bus icon]\nADA Customers: Transfer between [4] and uptown [D] trains at 125 St via the M60 bus for service to accessible stations in the Bronx including Tremont Av, Kingsbridge Rd and Bedford Park Blvd. Elevators at 161 St-Yankee Stadium are not in service.\n\nWhat's happening?\nSignal maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 28, Wednesday, 9:30 AM to 2:00 PM","updated":1790860899,"periods":[[1793194200,1793210400]]},{"id":"lmm:planned_work:35104","kind":"planned","type":"Planned - Part Suspended","lines":["N"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, no [N] at Coney Island-Stillwell Av","description":"[N] runs between Astoria-Ditmars Blvd and 86 St, the last stop.\n\n[shuttle bus icon] Free shuttle buses run between 86 St and Coney Island-Stillwell Av.\n\nFor service between Manhattan and Coney Island-Stillwell Av, take the [D][F] * or [Q] instead.\n\nTransfer stations:\n34 St-Herald Sq [accessibility icon] | [D][F][N][Q]\nAtlantic Av-Barclays Ctr [accessibility icon] (D, N) | [D][N][Q]\n62 St/New Utrecht Av [accessibility icon] | [D][N]\nWhen exiting at 86 St or Coney Island-Stillwell Av, get a GO ticket to re-enter the subway.\n\n*The last stop for some Coney Island-bound [F] trains is Church Av during this time.\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] ADA Note: 86 St is not accessible. For accessible travel, transfer to a Coney Island-bound train at one of the above accessible stations.","when":"Oct 27, Tuesday, 9:45 AM to 3:00 PM","updated":1790791322,"periods":[[1793108700,1793127600]]},{"id":"lmm:planned_work:35100","kind":"planned","type":"Planned - Reroute","lines":["C"],"wholeLine":[],"stopsByLine":{"C":["A38"]},"header":"In Brooklyn and Manhattan, [C] service is rerouted in both directions between Jay St-MetroTech and 59 St-Columbus Circle","description":"168 St-bound [C] runs via the [F] from Jay St-MetroTech to 34 St-Herald Sq and via the [D] to 59 St-Columbus Circle. \nEuclid Av-bound [C] runs via the [D] from 59 St-Columbus Circle to 34 St-Herald Sq and via the [F] to Jay St-MetroTech.\n\nTravel alternatives:\nFor High St, use the nearby York St [F] station instead.\n\nFor Fulton St, take the [J] via transfer at the Delancey St-Essex St [F] station. Or, use the nearby World Trade Center [accessibility icon] | [E] station via transfer at W 4 St-Wash Sq [accessibility icon].\n\nFor Chambers St/World Trade Center and Canal St, take the [E] or a downtown [A]. \n\nFor service to Spring St, take the [C] to W 4 St-Wash Sq and transfer to a downtown [A] or [E].\n\nFor service from Spring St, take the [E] to W 4 St-Wash Sq and transfer to an uptown [C].\n\nFor 14 St, 23 St, 34 St-Penn Station, 42 St-Port Authority, and 50 St take the [A] or [E] instead.\n\nTransfer stations:\nJay St-MetroTech [accessibility icon] | [A][C]\nW 4 St-Wash Sq [accessibility icon] | [A][C][E]\n7 Av [C][E]\n59 St-Columbus Circle [accessibility icon] | [A][C][1]\nNotes: Inwood-bound [A] runs via the [F] from Jay St-MetroTech to W 4 St-Wash Sq during this time.\nDowntown [A] runs local from 125 St to Canal St, and the uptown [A] stops at 23 St and 50 St during this time.\n\nSchedule reminder: [C] does not run overnight.\n\nWhat's happening?\nWe're making electrical improvements\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 31 - Nov 1, Sat and Sun, days and evenings","updated":1790862886,"periods":[[1793439900,1793502000],[1793535300,1793592000]]},{"id":"lmm:planned_work:35099","kind":"planned","type":"Planned - Reroute","lines":["A"],"wholeLine":[],"stopsByLine":{"A":["A38"]},"header":"In Brooklyn and Lower Manhattan, no Inwood-bound [A] at High St, Fulton St, Chambers St, Canal St and Spring St","description":"Inwood-bound [A] runs via the [F] from Jay St-MetroTech to W 4 St-Wash Sq.\n\nTravel alternatives:\nFor High St, use the nearby York St [F] station instead.\n\nFor Fulton St, take the [J] via transfer at the Delancey St-Essex St [F] station. Or, use the nearby World Trade Center [accessibility icon] | [E] station via transfer at W 4 St-Wash Sq [accessibility icon].\n\nFor Chambers St/World Trade Center, Canal St and Spring St, take the [E] or downtown [A][C] via transfer at W 4 St-Wash Sq.\n\nWhat's happening?\nWe're making electrical improvements\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 30 - Nov 2, Fri 11:45 PM to Mon 5:00 AM","updated":1790791178,"periods":[[1793418300,1793613600]]},{"id":"lmm:planned_work:35098","kind":"planned","type":"Planned - Express to Local","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, uptown [A] stops at 23 St and 50 St","description":"Schedule reminder: Late night [A] also serves these stations.\n\nWhat's happening?\nWe're making electrical improvements","when":"Oct 31 - Nov 1, Sat and Sun, all day","updated":1790791167,"periods":[[1793441700,1793502957],[1793536200,1793592957]]},{"id":"lmm:planned_work:35096","kind":"planned","type":"Planned - Express to Local","lines":["D"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, downtown [D] runs local from 125 St to 59 St-Columbus Circle","description":"What's happening?\nStructural maintenance","when":"Oct 31 - Nov 2, Sat 12:01 AM to Mon 5:00 AM","updated":1790791128,"periods":[[1793419260,1793613600]]},{"id":"lmm:planned_work:35095","kind":"planned","type":"Planned - Express to Local","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, downtown [A] runs local from 125 St to Canal St","description":"Schedule reminder: Late night [A] also runs local between these stations.\n\nWhat's happening?\nStructural maintenance and electrical improvements","when":"Oct 31 - Nov 1, Sat and Sun, all day","updated":1790791110,"periods":[[1793439000,1793499300],[1793534400,1793589300]]},{"id":"lmm:planned_work:35084","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Queens-bound [A] local skips Lafayette Av, Clinton-Washington Avs, Franklin Av and Kingston-Throop Avs","description":"For service to these stations, take the [A] to Nostrand Av or Utica Av [accessibility icon] and transfer to a Manhattan-bound train.\n\nFor service from these stations, take a Manhattan-bound train to Nostrand Av or Hoyt-Schermerhorn Sts and transfer to a Queens-bound [A].\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 26 - 30, Mon to Fri, 11:45 PM to 5:00 AM","updated":1790791040,"periods":[[1793072700,1793091600],[1793159100,1793178000],[1793245500,1793264400],[1793331900,1793350800]]},{"id":"lmm:planned_work:34968","kind":"planned","type":"Extra Service","lines":["R"],"wholeLine":[],"stopsByLine":{},"header":"Queens-bound [R] trains that normally end service at Queens Plaza will be extended to Jackson Heights-Roosevelt Av","description":"Note: [R] runs via Roosevelt Island [F] in both directions between 57 St-7 Av, Manhattan and 36 St, Queens, during this time.\n\nSchedule reminder: [R] trains do not run in Queens overnight.\n\nWhat's happening?\nFastrack maintenance","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning 9:45 PM","updated":1792071508,"periods":[[1792719900,1792727100],[1793065500,1793072700],[1793151900,1793159100],[1793238300,1793245500],[1793324700,1793331900]]},{"id":"lmm:planned_work:34966","kind":"planned","type":"Planned - Reroute","lines":["R"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan and Queens, [R] runs via Roosevelt Island [F] in both directions between 57 St-7 Av and 36 St","description":"Trains stop at Lexington Av/63 St, Roosevelt Island and 21 St-Queensbridge.\n\nTravel alternatives:\nFor 5 Av/59 St and Lexington Av/59 St, take the [N] via transfer at 57 St-7 Av [accessibility icon].\n\nFor Queens Plaza, take the [F]. Transfer at Times Sq-42 St/Port Authority or Jackson Hts-Roosevelt Av [accessibility icon].\n\nNote: [F] is rerouted via Court Sq [E] between Roosevelt Av, Queens and Canal St, Manhattan, then via the [A] to/from Jay St-MetroTech, Brooklyn, Oct 19 - 23 and Oct 26 - 30, Mon to Fri, 9:30 PM to 5:00 AM.\n\nWhat's happening?\nFastrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning at 9 PM","updated":1791311703,"periods":[[1792717200,1792726200],[1793062800,1793071800],[1793149200,1793158200],[1793235600,1793244600],[1793322000,1793331000]]},{"id":"lmm:planned_work:34860","kind":"planned","type":"Planned - Express to Local","lines":["N"],"wholeLine":[],"stopsByLine":{"N":["R31"]},"header":"In Brooklyn, [N] runs local in both directions between DeKalb Av and 59 St","description":"Schedule reminder: Overnight [N] runs local in both directions between these stations.\n\nWhat's happening?\nFastrack maintenance","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning at 10 PM","updated":1792071028,"periods":[[1792720800,1792728942],[1793066400,1793074542],[1793152800,1793160942],[1793239200,1793247342],[1793325600,1793333742]]},{"id":"lmm:planned_work:34859","kind":"planned","type":"Planned - Express to Local","lines":["N"],"wholeLine":[],"stopsByLine":{"N":["R31"]},"header":"In Manhattan, [N] runs local in both directions between 57 St-7 Av and Canal St","description":"Schedule reminder: Overnight [N] runs local in both directions between these stations.\n\nWhat's happening?\nFastrack maintenance","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning at 10 PM","updated":1792071002,"periods":[[1792720800,1792728942],[1793066400,1793074542],[1793152800,1793160942],[1793239200,1793247342],[1793325600,1793333742]]},{"id":"lmm:planned_work:34854","kind":"planned","type":"Planned - Suspended","lines":["C"],"wholeLine":[],"stopsByLine":{"C":["A38"]},"header":"[C] service ends early - take the [A] instead","description":"[A] runs local in both directions between 168 St and Euclid Av.\n\nIn Manhattan, transfer between trains at the following stations:\n59 St-Columbus Circle [accessibility icon] | [A][D][1]\n42 St Port Authority/Times Sq/Bryant Park\n[1][2][3][A][E][D][F][N][Q]\n34 St-Herald Sq [accessibility icon] | [E][D][N][Q][R]\n14 St (6 Av) [L][1][2] (via passageway)\nW 4 St-Wash Sq [accessibility icon] | [A][D][F]\nSchedule reminder: [C] does not operate overnight.\n\nWhat's happening?\nFastrack maintenance","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning 9:00 PM","updated":1792071222,"periods":[[1792717200,1792726200],[1793062800,1793071800],[1793149200,1793158200],[1793235600,1793244600],[1793322000,1793331000]]},{"id":"lmm:planned_work:34840","kind":"planned","type":"Planned - Part Suspended","lines":["D"],"wholeLine":[],"stopsByLine":{"D":["R31"]},"header":"No [D] between 59 St-Columbus Circle, Manhattan and Atlantic Av-Barclays Ctr, Brooklyn","description":"[D] service operates in two sections:\n1. Between Norwood-205 St and 59 St-Columbus Circle, then local via [C] to/from World Trade Center [E] Station, the last stop\n2. Between Atlantic Av-Barclays Ctr and Coney Island-Stillwell Av\nTrains run express in both directions between Atlantic Av-Barclays Ctr and 36 St.\n\n[shuttle bus icon] Free shuttle buses run between W 4 St-Wash Sq and East Broadway, stopping at Broadway-Lafayette St, 2 Av, Grand St and Delancey St-Essex St.\n\nSee a map of this service change.\n\nTravel alternatives:\nFor service between Manhattan and Brooklyn, take the [N] or [Q].\nFor 7 Av, use nearby 57 St/7 Av [N][Q][R] station on Broadway or nearby [A][C][E] station on 8 Av.\nFor 47-50 Sts-Rockefeller Ctr, 42 St-Bryant Park and 34 St-Herald Sq, use nearby [N][Q][R] stations on Broadway or nearby [A][C][E] stations on 8 Av.\nFor Broadway-Lafayette St, use nearby Bleecker St [6] station or [shuttle bus icon] free shuttle buses.\nFor Grand St, use nearby Canal St [N][Q] station or [shuttle bus icon] free shuttle buses.\nFor DeKalb Av, take the [N] or [Q].\nFor Union St, 4 Av-9 St, Prospect Av and 25 St, take the [N] or [R] instead.\n\nTransfer stations:\n42 St Port Authority/Times Sq/Bryant Park\n[1][2][3][A][E][D][F][N][Q]\n34 St-Herald Sq [accessibility icon] | [N][Q]\nW 4 St-Wash Sq [accessibility icon] | [A][D][F] [shuttle bus icon]\nAtlantic Av-Barclays Ctr [accessibility icon] | [D][N][Q]\n36 St [D][N]\nNote: [F] is rerouted via Court Sq [E] between Roosevelt Av, Queens and W 4 St-Wash Sq, Manhattan, then via the [A] to Jay St-MetroTech, Brooklyn during this time.\n\nWhat's happening?\nFastrack maintenance \n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 23 and Oct 26 - 30, Mon to Fri, 9:30 PM to 5:00 AM","updated":1792444789,"periods":[[1792632651,1792659654],[1792719051,1792746054],[1793064651,1793091654],[1793151051,1793178054],[1793237451,1793264454],[1793323851,1793350854]]},{"id":"lmm:planned_work:34838","kind":"planned","type":"Planned - Suspended","lines":["B"],"wholeLine":[],"stopsByLine":{"B":["R31"]},"header":"[B] service ends early","description":"Take the [A][D] and/or [Q] trains.\nTransfer at 59 St-Columbus Circle [accessibility icon] | [A][D], 34 St-Herald Sq [accessibility icon] | [Q]  and/or Atlantic Av-Barclays Ctr [D][Q]\nWhat's happening?\nFastrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning 8:30 PM","updated":1792070675,"periods":[[1792715400,1792722600],[1793061000,1793068200],[1793147400,1793154600],[1793233800,1793241000],[1793320200,1793327400]]},{"id":"lmm:planned_work:34826","kind":"planned","type":"Planned - Express to Local","lines":["Q"],"wholeLine":[],"stopsByLine":{"Q":["R31"]},"header":"In Manhattan, [Q] runs local in both directions between 57 St-7 Av and Canal St","description":"Schedule reminder: Overnight [Q] runs local in both directions between these stations.\n\nWhat's happening?\nFastrack maintenance","when":"Oct 19 - 22 and Oct 26 - 29, Mon to Thu, beginning at 10 PM","updated":1792070845,"periods":[[1792720800,1792726200],[1793066400,1793071800],[1793152800,1793158200],[1793239200,1793244600],[1793325600,1793331000]]},{"id":"lmm:planned_work:34824","kind":"planned","type":"Reduced Service","lines":["6"],"wholeLine":["6"],"stopsByLine":{},"header":"[6] runs every 8 minutes","description":"[6] runs on a modified schedule while [4] and [6] trains share a track in Manhattan.\n\nWhat's happening?\nTrack maintenance","when":"Oct 24 - 25, Sat and Sun, days and evenings","updated":1792598636,"periods":[[1792848600,1792886400],[1792938600,1792967400]]},{"id":"lmm:planned_work:34823","kind":"planned","type":"Extra Service","lines":["S"],"wholeLine":[],"stopsByLine":{"S":["901"]},"header":"[S] 42 Street Shuttle service runs overnight","description":"What's happening?\nWe're providing additional service for customers during planned work.","when":"Oct 24 - 26, Sat to Mon, 12:01 AM to 6:00 AM","updated":1790167736,"periods":[[1792814460,1792836000],[1792900860,1792922400],[1792987260,1793008800]]},{"id":"lmm:planned_work:34822","kind":"planned","type":"Planned - Part Suspended","lines":["5"],"wholeLine":[],"stopsByLine":{"5":["631","418"]},"header":"No [5] between Bowling Green, Manhattan and E 180 St, Bronx","description":"[5] trains run between Eastchester-Dyre Av and E 180 St, every 12 minutes days and evenings\n\n[2] trains make [5] stops between E 180 St and 149 St-Hostos.\n[4] trains make [5] stops between 125 St and Bowling Green.\nTransfer between trains at E 180 St [accessibility icon] | [2][5] and/or 149 St-Hostos [accessibility icon] | [2] and [shuttle bus icon] free shuttle buses.\nNote: No [4] between 149 St-Hostos and 125 St, during this time. [shuttle bus icon] Free shuttle buses run between 149 St-Hostos and 3 Av-138 St [6] Station, stopping at 138 St-Grand Concourse.\n\nTravel tip:\nFor Midtown and Lower Manhattan, use the [7][N][Q][R][S] via transfer with the [2] at Times Sq-42 St [accessibility icon].\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 24 - 25, Sat and Sun, days and evenings","updated":1792511372,"periods":[[1792834200,1792899000],[1792927800,1792985400]]},{"id":"lmm:planned_work:34820","kind":"planned","type":"Planned - Express to Local","lines":["4"],"wholeLine":[],"stopsByLine":{"4":["631","418"]},"header":"In Manhattan, [4] runs local in both directions between 125 St and Brooklyn Bridge-City Hall","description":"Schedule reminder: Late night [4] runs local between these stations.\n\nWhat's happening?\nTrack maintenance","when":"Oct 24 - 25, Sat and Sun, all day","updated":1792598877,"periods":[[1792814460,1792819800],[1792835100,1792902600],[1792924200,1792989000]]},{"id":"lmm:planned_work:34819","kind":"planned","type":"Planned - Part Suspended","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"No [4] between 149 St-Hostos and 125 St","description":"[4] service runs in two sections:\n1. Between Utica Av/New Lots Av and 125 St and via the [6] to/from 3 Av-138 St\n2. Between Woodlawn and 149 St-Hostos, every 12 minutes days and evenings\n\n[shuttle bus icon] Free shuttle buses run between 149 St-Hostos and 3 Av-138 St [6] Station, stopping at 138 St-Grand Concourse.\nTransfer between trains and [shuttle bus icon] at 149 St-Hostos [accessibility icon] and/or 3 Av-138 St [6] Station.\nMetro-North will cross-honor [4] customers traveling between the Bronx and Manhattan for no additional charge. Hudson line cross-honor between Grand Central and University Heights stations. Harlem line cross-honor between Grand Central and Wakefield stations. Check Metro-North service and schedules.\n\nWhat's happening?\nTrack maintenance","when":"Oct 23 - 26, Fri 11:45 PM to Mon 5:00 AM","updated":1792598341,"periods":[[1792813500,1793005200]]},{"id":"lmm:planned_work:34816","kind":"planned","type":"Planned - Express to Local","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Pelham Bay Park-bound express [6X] runs local from 3 Av-138 St to Parkchester","description":"What's happening?\nTrack maintenance","when":"Oct 20 - 23, Tue to Fri, 1:00 PM to 3:30 PM","updated":1790186219,"periods":[[1792688400,1792697400],[1792774800,1792783800]]},{"id":"lmm:planned_work:34813","kind":"planned","type":"Planned - Stops Skipped","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Pelham Bay Park-bound [6] skips Castle Hill Av, Zerega Av, Westchester Sq-E Tremont Av, Middletown Rd and Buhre Av","description":"For service to these stations, take the [6] to Pelham Bay Park [accessibility icon] and transfer to a Manhattan-bound [6].\n\nFor service from these stations, take the [6] to Parkchester [accessibility icon] and transfer to a Pelham Bay Park-bound [6].\n\nWhat's happening?\nTrack maintenance\n\nNotes: [6] runs every 8 minutes in the Bronx. The last stop for some Bronx-bound trains is 3 Av-138 St. Transfer at 3 Av-138 St to a Pelham Bay Park-bound [6] to continue your trip.\n\n[accessibility icon] If you're on a train terminating at 3 Av-138 St, an accessible transfer is available at 125 St [accessibility icon] to the next Pelham Bay Park-bound [6].\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 20 - 23, Tue to Fri, 9:45 AM to 3:30 PM","updated":1790186182,"periods":[[1792676700,1792697411],[1792763100,1792783811]]},{"id":"lmm:planned_work:34811","kind":"planned","type":"Planned - Stops Skipped","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Woodlawn-bound [4] skips 161 St, 167 St, 170 St, Mt Eden Av and 176 St\nAll trains board from the Manhattan-bound platform at Burnside Av","description":"For service to these stations, take the [4] to Burnside Av and transfer to a Manhattan-bound train.\n\nFor service from these stations, take the [4] to 149 St-Hostos [accessibility icon] and transfer to a Woodlawn-bound train.\n\nTravel tip:\nFor service from 176 St, take the Bx32 bus and transfer to the [4] at Burnside Av.\n\nNote: Through December 2026, Woodlawn-bound [4] skips Burnside Av, except Oct 20 - 23, Tue to Fri, 9:45 AM to 3:30 PM.....Oct 27, 29 and 30, Tue, Thu and Fri, 9:45 AM to 3:30 PM.\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 20 - 23 and Oct 27 - 30, Tue to Fri, 9:45 AM to 3:30 PM (Except Wed, Oct 28)","updated":1790781086,"periods":[[1792676700,1792697400],[1792763100,1792783800],[1793108700,1793129400],[1793281500,1793302200],[1793367900,1793388600]]},{"id":"lmm:planned_work:34807","kind":"planned","type":"Planned - Stops Skipped","lines":["2","5"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Manhattan-bound [2][5] runs express from E 180 St to 3 Av-149 St\nAll trains at E 180 St board from the uptown platform","description":"For service to West Farms Sq-E Tremont Av, 174 St, Freeman St, Simpson St, Intervale Av, Prospect Av and Jackson Av, take the [2] or [5] to 149 St-Hostos [accessibility icon] and transfer to a Wakefield-bound [2] or Dyre Av-bound [5].\n\nFor service from these stations, take the [2] or [5] to E 180 St [accessibility icon] and transfer to a Manhattan-bound [2] or [5].\n\nTravel tip:\nFrom Simpson St, Intervale Av, Prospect Av and Jackson Av, take the Bx4 bus instead. Transfer to the [2] or [5] at 3 Av-149 St [accessibility icon].\n\nWhat's happening?\nSignal maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 22, Thursday, 10:45 AM to 3:30 PM","updated":1790176439,"periods":[[1792680300,1792697400]]},{"id":"lmm:planned_work:34802","kind":"planned","type":"Boarding Change","lines":["2"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, all [2] trains at E 180 St board from the uptown platform","description":"Please listen carefully to announcements and check the destination displayed on the train before boarding.\n\nWhat's happening?\nSignal maintenance","when":"Oct 21 - 22, Wed 11:45 PM to Thu 5:00 AM","updated":1790166976,"periods":[[1792640700,1792659600]]},{"id":"lmm:planned_work:34800","kind":"planned","type":"Planned - Suspended","lines":["5"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, no overnight [5] between Dyre Av and E 180 St","description":"[shuttle bus icon] Free T113 shuttle buses make stops between Dyre Av and E 180 St.\nTransfer between [2] and [shuttle bus icon] at E 180 St [accessibility icon].\nWhat's happening?\nSignal maintenance","when":"Oct 20 - 22, Tue to Thu, 11:45 PM to 5:00 AM","updated":1792502324,"periods":[[1792640700,1792659600]]},{"id":"lmm:planned_work:34798","kind":"planned","type":"Planned - Stops Skipped","lines":["4"],"wholeLine":[],"stopsByLine":{"4":["235"]},"header":"In Brooklyn, Manhattan-bound [4] local skips Eastern Pkwy-Brooklyn Museum, Grand Army Plaza and Bergen St","description":"For service to these stations, take the [4] to Atlantic Av-Barclays Ctr and transfer to a Flatbush Av-bound [2] or New Lots Av-bound [4] local.\n\nFor service from these stations, take the [2] or [4] to Franklin Av-Medgar Evers College and transfer to a Manhattan-bound [4].\n\nSchedule reminder: [4] does not serve these stations days and evenings.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 23, Mon to Fri, 10:30 PM to 5:00 AM","updated":1790175667,"periods":[[1792636200,1792659600],[1792722600,1792746000]]},{"id":"lmm:planned_work:34797","kind":"planned","type":"Planned - Stops Skipped","lines":["2","3"],"wholeLine":[],"stopsByLine":{"2":["235"],"3":["235"]},"header":"In Brooklyn, Manhattan-bound [2][3] skips Eastern Pkwy-Brooklyn Museum, Grand Army Plaza and Bergen St","description":"For service to these stations, take the [2][3] to Atlantic Av-Barclays Ctr and transfer to a Flatbush Av-bound [2], New Lots Av-bound [3] or Utica Av/New Lots Av-bound [4].\n\nFor service from these stations, take the [2][3] or [4] to Franklin Av-Medgar Evers College and transfer to a Manhattan-bound [2] or [3].\n\nSchedule reminder: Late night [3]  service runs in Manhattan between Harlem-148 St  and 34 St-Penn Station.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 23, Mon to Fri, 9:45 PM to 5:00 AM","updated":1790175601,"periods":[[1792633500,1792659600],[1792719900,1792746000]]},{"id":"lmm:planned_work:34784","kind":"planned","type":"Planned - Stops Skipped","lines":["2"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, downtown [1] and [2] local skip Christopher St-Stonewall, Houston St, Canal St and Franklin St","description":"For service to these stations, take the [1] or [2] to Chambers St and transfer to an uptown [1] or [2] local.\n\nFor service from these stations, take the [1] or [2] to 14 St  and transfer to a downtown [1] or [2].\n\nSchedule reminder: [2] skips these stations days and evenings.\n\nWhat's happening?\nWe're replacing tracks","when":"Oct 19 - 23 and Oct 26 - 30, Mon to Fri, 11:45 PM to 5:00 AM","updated":1790684109,"periods":[[1792640700,1792659600],[1792727100,1792746000],[1793072700,1793091600],[1793159100,1793178000],[1793245500,1793264400],[1793331900,1793350800]]},{"id":"lmm:planned_work:34780","kind":"planned","type":"Planned - Stops Skipped","lines":["C"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, uptown [C] skips 72 St, 81 St-Museum of Natural History, 86 St, 96 St, 103 St, Cathedral Pkwy-110 St and 116 St","description":"For service to these stations, take the [C] to 125 St and transfer to a downtown [C].\n\nFor service from these stations, take the [C] to 59 St-Columbus Circle and transfer to an uptown [C].\n\nSchedule reminder: [C] does not operate overnight.\n\nWhat's happening?\nWe're replacing tracks","when":"Oct 24 - 25, Sat and Sun, days and evenings","updated":1791902863,"periods":[[1792837800,1792899000],[1792928700,1792985400]]},{"id":"lmm:planned_work:34779","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Manhattan, uptown [A] local skips 72 St, 81 St-Museum of Natural History, 86 St, 96 St, 103 St, Cathedral Pkwy-110 St and 116 St","description":"For service to these stations, take the [A] to 125 St and transfer to a downtown [A].\n\nFor service from these stations, take the [A] to 59 St-Columbus Circle and transfer to an uptown [A].\n\nSchedule reminder: [A] skips these stations days and evenings.\n\nWhat's happening?\nWe're replacing tracks","when":"Oct 23 - 26, Fri to Mon, Overnight","updated":1791902842,"periods":[[1792813500,1792834200],[1792893600,1792926000],[1792980000,1793005200]]},{"id":"lmm:planned_work:34767","kind":"planned","type":"Planned - Stops Skipped","lines":["C"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Euclid Av-bound [C] skips Lafayette Av, Clinton-Washington Avs, Franklin Av and Kingston-Throop Avs","description":"For service to these stations, take the [C] to Nostrand Av or Utica Av [accessibility icon] and transfer to a Manhattan-bound train.\n\nFor service from these stations, take a Manhattan-bound train to Nostrand Av or Hoyt-Schermerhorn Sts and transfer to a Euclid Av-bound [C].\n\nSchedule reminder: [C] does not operate overnight.\n\nWhat's happening?\nStation maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 24 - 25, Oct 31 - Nov 1, and Nov 7 - 8, Sat and Sun, days and evenings","updated":1791297079,"periods":[[1792836900,1792897224],[1792927800,1792983624],[1793441700,1793502024],[1793536200,1793592024]]},{"id":"lmm:planned_work:34766","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Queens-bound [A] local skips Lafayette Av, Clinton-Washington Avs, Franklin Av and Kingston-Throop Avs","description":"For service to these stations, take the [A] to Nostrand Av or Utica Av [accessibility icon] and transfer to a Manhattan-bound train.\n\nFor service from these stations, take a Manhattan-bound train to Nostrand Av or Hoyt-Schermerhorn Sts and transfer to a Queens-bound [A].\n\nWhat's happening?\nStation maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 23 - 26, Oct 30 - Nov 2, and Nov 6 - 9, Fri to Mon, Overnight","updated":1791297098,"periods":[[1792813500,1792836900],[1792896300,1792928700],[1792982700,1793005200],[1793414700,1793437200],[1793501100,1793527200],[1793591100,1793613600]]},{"id":"lmm:planned_work:34765","kind":"planned","type":"Planned - Part Suspended","lines":["Q"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, no [Q] between Brighton Beach and Coney Island-Stillwell Av","description":"[Q] runs between 96 St and Brighton Beach, the last stop.\n\n[shuttle bus icon] Free B109 shuttle buses make stops between Brighton Beach and Coney Island.\nTransfer between trains and [shuttle bus icon] buses at Brighton Beach or Coney Island [accessibility icon] | [D][F] or [N].\nFor direct service between Coney Island and Manhattan/Downtown Brooklyn, take the [D][F] or [N].\nTransfer at Atlantic Av-Barclays Ctr | [D][N][Q] or 34 St-Herald Sq [accessibility icon] | [D][F][N][Q]\nWhen exiting Brighton Beach or Coney Island-Stillwell Av, get a GO ticket for re-entry into the subway.\n\nWhat's happening?\nTrack maintenance\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 26, Monday, 9:45 AM to 3:00 PM","updated":1792598963,"periods":[[1793022300,1793041200]]},{"id":"lmm:planned_work:34764","kind":"planned","type":"Planned - Part Suspended","lines":["B"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, no [B] between Kings Hwy and Brighton Beach - take the [Q]","description":"[B] runs between Bedford Park Blvd and Kings Hwy, the last stop.\nTransfer between [B] and [Q] at Kings Hwy.\nWhat's happening?\nTrack maintenance","when":"Oct 26, Monday, 9:45 AM to 3:00 PM","updated":1791910393,"periods":[[1793022300,1793041200]]},{"id":"lmm:planned_work:34763","kind":"planned","type":"Reduced Service","lines":["J"],"wholeLine":["J"],"stopsByLine":{},"header":"[J] trains run every 10 minutes","description":"What's happening?\nWe're replacing tracks","when":"Oct 20 - 23, Oct 27 - 30, Nov 3 - 6, Nov 10 - 13, and Nov 17 - 20, Tue to Fri, 9:30 AM to 4:00 PM (except Thu, Nov 12)","updated":1792502087,"periods":[[1792675800,1792699200],[1792762200,1792785600],[1793107800,1793131200],[1793194200,1793217600],[1793280600,1793304000],[1793367000,1793390400],[1793716200,1793739600],[1793802600,1793826000]]},{"id":"lmm:planned_work:34762","kind":"planned","type":"Planned - Stops Skipped","lines":["J"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Manhattan-bound [J] skips Chauncey St, Halsey St, Gates Av and Kosciuszko St","description":"For service to these stations, take the [J] to Myrtle Av and transfer to a Jamaica Center-bound [J].\n\nFor service from these stations, take the [J] to Broadway Junction and transfer to a Manhattan-bound [J].\n\nWhat's happening?\nWe're replacing tracks","when":"Oct 20 - 23, Oct 27 - 30, Nov 3 - 6, Nov 10 - 13, and Nov 17 - 20, Tue to Fri, 9:30 AM to 4:00 PM (except Thu, Nov 12)","updated":1792156004,"periods":[[1792675853,1792699200],[1792762253,1792785600],[1793107853,1793131200],[1793194253,1793217600],[1793280653,1793304000],[1793367053,1793390400],[1793716253,1793739600],[1793802653,1793826000]]},{"id":"lmm:planned_work:34761","kind":"planned","type":"Planned - Part Suspended","lines":["N"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, no [N] at Coney Island-Stillwell Av","description":"[N] runs between Astoria-Ditmars Blvd and 86 St, the last stop.\n\n[shuttle bus icon] Free shuttle buses run between 86 St and Coney Island-Stillwell Av.\n\nFor service between Manhattan and Coney Island-Stillwell Av, take the [D][F] or [Q] instead.\n\nTransfer stations:\n34 St-Herald Sq [accessibility icon] | [D][F][N][Q]\nAtlantic Av-Barclays Ctr [accessibility icon] (D, N) | [D][N][Q]\n62 St/New Utrecht Av [accessibility icon] | [D][N]\nWhen exiting at 86 St or Coney Island-Stillwell Av, get a GO ticket to re-enter the subway.\n\nWhat's happening?\nFlood protection\n\n[accessibility icon] ADA Note: 86 St is not accessible. For accessible travel, transfer to a Coney Island-bound train at one of the above accessible stations.","when":"Oct 24 - 25, Sat 3:45 AM to Sun 10:00 PM","updated":1792598440,"periods":[[1792827941,1792980046]]},{"id":"lmm:planned_work:34705","kind":"planned","type":"Planned - Express to Local","lines":["J"],"wholeLine":[],"stopsByLine":{"J":["M22"]},"header":"[J] express trains make local stops in both directions at Hewes St, Lorimer St and Flushing Av","description":"What's happening?\nWe're replacing tracks","when":"Oct 20 - 23, Tue to Fri, 10:00 AM to 3:00 PM","updated":1792157586,"periods":[[1792677600,1792695600],[1792764000,1792782000]]},{"id":"lmm:planned_work:34626","kind":"planned","type":"Planned - Part Suspended","lines":["J"],"wholeLine":[],"stopsByLine":{"J":["M22"]},"header":"No [J] between Myrtle Av and Broad St","description":"[J] runs between Jamaica Center-Parsons/Archer and Myrtle Av, the last stop.\n\n[shuttle bus icon] Free T432 shuttle buses run between Myrtle Av and Delancey St-Essex St.\n\nTravel Alternatives:\nFor service between Brooklyn and Manhattan, take the [A][C] or [L].\n\nFor Lower Manhattan, take the [4][5][6] to/from nearby stops.\n\nWhen exiting at Myrtle Av or Delancey St-Essex St, get a GO ticket to re-enter the subway.\n\nBrooklyn transfer stations:\nBroadway Junction [J] and [A][C][L]\nMyrtle Av [shuttle bus icon] [J][M]\nManhattan transfer stations:\nDelancey St-Essex St [shuttle bus icon] [F]\nBleecker St/B'way-Lafayette St [accessibility icon] | [4] local, [6] and [F]\nBrooklyn Bridge-City Hall [accessibility icon] | [4][5][6]\n14 St-Union Sq [4][5][6] and [L]\nTravel tip:\nThe B39 bus provides service between Williamsburg Bridge Plaza and Delancey St-Essex St [J] station days and evenings.\n\nNote: No [M] between Myrtle Av and Delancey St-Essex St during this time.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 24 - 25, Sat 3:30 AM to Sun 10:00 PM","updated":1792508415,"periods":[[1792827000,1792980000]]},{"id":"lmm:planned_work:34550","kind":"planned","type":"Planned - Stops Skipped","lines":["A"],"wholeLine":[],"stopsByLine":{},"header":"In Brooklyn, Manhattan-bound [A] local skips Shepherd Av, Van Siclen Av, Liberty Av, Rockaway Av and Ralph Av","description":"For service to these stations, take the [A] to Broadway Junction or Utica Av and transfer to a Queens-bound [A].\n\nFor service from these stations, take the [A] to Broadway Junction or Euclid Av and transfer to a Manhattan-bound [A].\n\nWhat's happening?\nWe're making station improvements","when":"Oct 19 - 23, Mon to Fri, 11:15 PM to 5:00 AM","updated":1792158928,"periods":[[1792638900,1792659600],[1792725300,1792746000]]},{"id":"lmm:planned_work:34162","kind":"planned","type":"Planned - Part Suspended","lines":["6"],"wholeLine":[],"stopsByLine":{},"header":"No [6] between Hunts Point Av and 125 St","description":"[6] runs in two sections:\n1. Between Brooklyn Bridge-City Hall and 125 St and via the [4] to/from 149 St-Hostos.\n2. Between Hunts Point Av and Pelham Bay Park\n\n[shuttle bus icon] Free T102 shuttle buses make all stops between 125 St and Hunts Point Av.\nTransfer between [6] and [shuttle bus icon] at Hunts Point Av [accessibility icon] and 125 St [accessibility icon]\nNote: Uptown [6] trains skip the 138 St-Grand Concourse [4] station.\n\nWhat's happening?\nWe're replacing tracks\n\n[accessibility icon] This service change affects one or more ADA accessible stations and these travel alternatives may not be fully accessible. Please contact 511 to plan your trip.","when":"Oct 19 - 23, Mon to Fri, 9:30 PM to 5:00 AM","updated":1792158723,"periods":[[1792632600,1792659600],[1792719000,1792746000]]},{"id":"lmm:planned_work:31871","kind":"planned","type":"Planned - Express to Local","lines":["7"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, all Manhattan-bound [7][7X] local/express trains stop at 74 St-Broadway","description":"Flushing-bound [7X] express trains skip 74 St-Broadway.\nFlushing-bound [7] local trains will continue to stop at 74 St-Broadway.\n\nFor service to 74 St-Broadway and/or transfer to Jackson Hts-Roosevelt Av [E][F][M][R], transfer at Woodside-61 St to a Flushing-bound [7] local.\n\nAdditional travel alternatives:\nFor service to this station, take the [7X] to Junction Blvd and transfer to a Manhattan-bound [7][7X].\n\nWhat's happening?\nWe're making structural improvements","when":"Through Spring 2027","updated":1790188032,"periods":[[1792664100,1792677600],[1792695600,1792720800],[1792750500,1792764000],[1792782000,1792807200],[1793009700,1793023200],[1793041200,1793066400],[1793096100,1793109600],[1793127600,1793152800],[1793182500,1793196000],[1793214000,1793239200],[1793268900,1793282400],[1793300400,1793325600],[1793355300,1793368800],[1793386800,1793412000],[1793618100,1793631600],[1793649600,1793674800],[1793704500,1793718000],[1793736000,1793761200],[1793790900,1793804400],[1793822400,1793847600]]},{"id":"lmm:planned_work:31498","kind":"planned","type":"Planned - Stops Skipped","lines":["7"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, Flushing-bound [7] skips 52 St and 69 St\nAll trains at Woodside-61 St board from the Manhattan-bound platform","description":"Use nearby 46 St-Bliss St, Woodside-61 St or 74 St-Broadway stations.\n\nAdditional travel alternatives:\nFor service to these stations, take the [7] to Woodside-61 St or 74 St-Broadway and transfer to a Manhattan-bound [7].\n\nFor service from these stations, take the [7] to Woodside-61 St or 46 St-Bliss St and transfer to a Flushing-bound [7].\n\nNote: There will be temporary platforms on the Flushing-bound side at 33 St-Rawson St, 40 St-Lowery St and 46 St-Bliss St\n\nWhat's happening?\nWe're making structural improvements","when":"Through Spring 2027","updated":1790188021,"periods":[[1779719400,1798779540]]},{"id":"lmm:planned_work:29949","kind":"planned","type":"Planned - Stops Skipped","lines":["4"],"wholeLine":[],"stopsByLine":{},"header":"In the Bronx, Woodlawn-bound [4] skips Burnside Av","description":"Use nearby 176 St or 183 St stations.\n\nAdditional travel alternatives:\nFor service to this station, take the [4] to 183 St and transfer to a Manhattan-bound train.\n\nFor service from this station, take the [4] to 176 St and transfer to a Woodlawn-bound train.\n\nWhat's happening?\nWe're making station improvements","when":"Through December 2026","updated":1791981399,"periods":[[1792609200,1792676700],[1792695600,1792763100],[1792782000,1793108700],[1793127600,1793281500],[1793300400,1793367900],[1793386800,1793432700],[1793588400,1793717100],[1793736000,1793803500],[1793822400,1793889900]]},{"id":"lmm:planned_work:29169","kind":"planned","type":"Boarding Change","lines":["7"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, all [7] trains at Vernon Blvd-Jackson Av and Hunters Point Av board from the Manhattan-bound platform","description":"Note: Some nights, this boarding change will be suspended or begin later because of other work along the [7] line.\n\nWhat's happening?\nTrack maintenance, testing and inspections in the Steinway Tunnel.","when":"Every Tue and Thu, 1:30 AM to 5 AM","updated":1792092678,"periods":[[1792647000,1792659600],[1793079000,1793091600],[1793251800,1793264400],[1793687400,1793700000]]},{"id":"lmm:planned_work:29166","kind":"planned","type":"Boarding Change","lines":["7"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, all [7] trains at Vernon Blvd-Jackson Av and Hunters Point Av board from the Manhattan-bound platform","description":"Note: Some nights, this boarding change will be suspended or begin later because of other work along the [7] line.\n\nWhat's happening?\nSignal maintenance, testing and inspections in the Steinway Tunnel.","when":"Every Monday, 1:30 AM to 5 AM","updated":1792377529,"periods":[[1792992600,1793005200],[1793601000,1793613600]]},{"id":"lmm:planned_work:29084","kind":"planned","type":"Boarding Change","lines":["7"],"wholeLine":[],"stopsByLine":{},"header":"In Queens, all [7] trains at Hunters Point Av and Vernon Blvd-Jackson Av board from the Flushing-bound platform","description":"Note: Some nights, this boarding change will be suspended or begin later because of other work along the [7] line.\n\nWhat's happening?\nTrack maintenance, testing and inspections in the Steinway Tunnel.","when":"Every Wed, Fri and Sat, 1:30 AM to 5 AM","updated":1792224305,"periods":[[1792733400,1792746000],[1792819800,1792832400],[1793165400,1793178000],[1793338200,1793350800],[1793424600,1793437200],[1793773800,1793786400]]}],"arrivals":{"229":{"S":[{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792650144},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792651069},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792651973},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792653052},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792654380}],"N":[{"line":"2","dest":"Wakefield-241 St","t":1792649521},{"line":"2","dest":"Wakefield-241 St","t":1792650161},{"line":"2","dest":"Nereid Av","t":1792651410},{"line":"2","dest":"Wakefield-241 St","t":1792652670}]},"235":{"S":[{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792649781},{"line":"4","dest":"New Lots Av","t":1792649855},{"line":"4","dest":"New Lots Av","t":1792650575},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792650894},{"line":"2","dest":"Flatbush Av-Brooklyn College","t":1792651819},{"line":"4","dest":"New Lots Av","t":1792652005}],"N":[{"line":"4","dest":"Woodlawn","t":1792649500},{"line":"2","dest":"Nereid Av","t":1792650630},{"line":"4","dest":"Woodlawn","t":1792650711},{"line":"2","dest":"Wakefield-241 St","t":1792651830},{"line":"4","dest":"Woodlawn","t":1792651950,"scheduled":true}]},"418":{"S":[{"line":"4","dest":"New Lots Av","t":1792649735},{"line":"4","dest":"New Lots Av","t":1792651165},{"line":"4","dest":"New Lots Av","t":1792652029},{"line":"4","dest":"New Lots Av","t":1792653270},{"line":"4","dest":"New Lots Av","t":1792654470,"scheduled":true}],"N":[{"line":"4","dest":"Woodlawn","t":1792649746},{"line":"4","dest":"Woodlawn","t":1792650130},{"line":"4","dest":"Woodlawn","t":1792651341},{"line":"4","dest":"Woodlawn","t":1792652580,"scheduled":true}]},"631":{"S":[{"line":"4","dest":"New Lots Av","t":1792650145},{"line":"6","dest":"Brooklyn Bridge-City Hall","t":1792650367},{"line":"4","dest":"New Lots Av","t":1792651009},{"line":"6","dest":"Brooklyn Bridge-City Hall","t":1792651410,"scheduled":true},{"line":"4","dest":"New Lots Av","t":1792652250},{"line":"6","dest":"Brooklyn Bridge-City Hall","t":1792652610,"scheduled":true}],"N":[{"line":"6","dest":"149 St-Hostos","t":1792650360},{"line":"4","dest":"Woodlawn","t":1792650676},{"line":"4","dest":"Woodlawn","t":1792651060},{"line":"6","dest":"149 St-Hostos","t":1792651560,"scheduled":true},{"line":"4","dest":"Woodlawn","t":1792652271},{"line":"4","dest":"Woodlawn","t":1792653510,"scheduled":true}]},"701":{"S":[{"line":"7","dest":"34 St-Hudson Yards","t":1792650000},{"line":"7","dest":"34 St-Hudson Yards","t":1792651200,"scheduled":true}]},"723":{"S":[{"line":"7","dest":"34 St-Hudson Yards","t":1792650748},{"line":"7","dest":"34 St-Hudson Yards","t":1792651810},{"line":"7","dest":"34 St-Hudson Yards","t":1792653010,"scheduled":true}],"N":[{"line":"7","dest":"Flushing-Main St","t":1792650610,"scheduled":true},{"line":"7","dest":"Flushing-Main St","t":1792651810,"scheduled":true}]},"A38":{"N":[{"line":"A","dest":"Inwood-207 St","t":1792649566},{"line":"F","dest":"Jamaica-179 St","t":1792650152},{"line":"A","dest":"Inwood-207 St","t":1792650286},{"line":"F","dest":"Jamaica-179 St","t":1792651036},{"line":"A","dest":"Inwood-207 St","t":1792651406},{"line":"F","dest":"Jamaica-179 St","t":1792652340,"scheduled":true}],"S":[{"line":"A","dest":"Far Rockaway-Mott Av","t":1792649930},{"line":"F","dest":"Coney Island-Stillwell Av","t":1792650286},{"line":"A","dest":"Far Rockaway-Mott Av","t":1792650406},{"line":"F","dest":"Coney Island-Stillwell Av","t":1792650782},{"line":"A","dest":"Far Rockaway-Mott Av","t":1792651366},{"line":"F","dest":"Coney Island-Stillwell Av","t":1792651636}]},"R31":{"S":[{"line":"N","dest":"Coney Island-Stillwell Av","t":1792649566},{"line":"R","dest":"Bay Ridge-95 St","t":1792650450,"scheduled":true},{"line":"D","dest":"Coney Island-Stillwell Av","t":1792650630,"scheduled":true},{"line":"N","dest":"Coney Island-Stillwell Av","t":1792650651},{"line":"N","dest":"Coney Island-Stillwell Av","t":1792651231},{"line":"D","dest":"Coney Island-Stillwell Av","t":1792651830,"scheduled":true}],"N":[{"line":"R","dest":"Whitehall St-South Ferry","t":1792649986},{"line":"N","dest":"Astoria-Ditmars Blvd","t":1792650475},{"line":"R","dest":"Whitehall St-South Ferry","t":1792651590,"scheduled":true},{"line":"N","dest":"Astoria-Ditmars Blvd","t":1792651800,"scheduled":true},{"line":"R","dest":"Whitehall St-South Ferry","t":1792652790,"scheduled":true},{"line":"N","dest":"Astoria-Ditmars Blvd","t":1792653000,"scheduled":true}]},"M22":{"S":[{"line":"J","dest":"Broad St","t":1792649997},{"line":"J","dest":"Broad St","t":1792651263},{"line":"J","dest":"Broad St","t":1792652432},{"line":"J","dest":"Broad St","t":1792653600,"scheduled":true},{"line":"J","dest":"Broad St","t":1792654800,"scheduled":true}],"N":[{"line":"J","dest":"Jamaica Center-Parsons/Archer","t":1792649790,"scheduled":true},{"line":"J","dest":"Jamaica Center-Parsons/Archer","t":1792650990,"scheduled":true},{"line":"J","dest":"Jamaica Center-Parsons/Archer","t":1792652190,"scheduled":true}]},"D24":{"N":[{"line":"Q","dest":"96 St","t":1792649500},{"line":"Q","dest":"96 St","t":1792650557},{"line":"Q","dest":"96 St","t":1792651830,"scheduled":true},{"line":"Q","dest":"96 St","t":1792653030,"scheduled":true},{"line":"Q","dest":"96 St","t":1792654230,"scheduled":true}],"S":[{"line":"Q","dest":"Coney Island-Stillwell Av","t":1792650196},{"line":"Q","dest":"Coney Island-Stillwell Av","t":1792651103},{"line":"Q","dest":"Coney Island-Stillwell Av","t":1792652250,"scheduled":true},{"line":"Q","dest":"Coney Island-Stillwell Av","t":1792653450,"scheduled":true},{"line":"Q","dest":"Coney Island-Stillwell Av","t":1792654650,"scheduled":true}]}}}</script>
+<!-- ===SUBWAY-SYNC-END=== -->
+
+<script src="subway-core.js"></script>
+<script>
+(() => {
+  const SNAPSHOT = JSON.parse(document.getElementById("subway-data").textContent);
+  // Address of a copy of this page that can reach the MTA; snapshot copies link to it.
+  const LIVE_URL = "https://subway.rustywashington.com/";
+  const TZ = "America/New_York";
+  const SECOND = 1000;
+  const MINUTE = 60 * SECOND;
+  const DAY = 24 * 60 * MINUTE;
+  const REFRESH_EVERY = MINUTE;
+  const RETRY_WHEN_UNREACHABLE = 5 * MINUTE;
+  const TICK_EVERY = 15 * SECOND;
+  const STALE_ALERTS = 20 * MINUTE;
+  const STALE_TRAINS = 15 * MINUTE;
+  const TRAINS_SHOWN = 3;
+  const LINE_ALIASES = { "6X": "6", "7X": "7", GS: "S" };
+
+  const LINE_COLORS = {
+    1: "#D82233", 2: "#D82233", 3: "#D82233",
+    4: "#009952", 5: "#009952", 6: "#009952", "6X": "#009952",
+    7: "#9A38A1", "7X": "#9A38A1",
+    A: "#0062CF", C: "#0062CF", E: "#0062CF",
+    B: "#EB6800", D: "#EB6800", F: "#EB6800", FX: "#EB6800", M: "#EB6800",
+    G: "#799534", J: "#8E5C33", Z: "#8E5C33", L: "#7C858C",
+    N: "#F6BC26", Q: "#F6BC26", R: "#F6BC26", W: "#F6BC26",
+    S: "#7C858C", GS: "#7C858C", FS: "#7C858C", H: "#7C858C",
+    SIR: "#08179C", SI: "#08179C",
+  };
+  const DARK_TEXT = new Set(["N", "Q", "R", "W"]);
+  const EXPRESS = new Set(["6X", "7X", "FX"]);
+  const SPOKEN = {
+    S: "42 St Shuttle", GS: "42 St Shuttle", FS: "Franklin Av Shuttle", H: "Rockaway Park Shuttle",
+    SIR: "Staten Island Railway", SI: "Staten Island Railway",
+  };
+
+  const ICONS = {
+    ok: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="currentColor"/></svg>',
+    info: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.25" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="1.6" fill="currentColor"/></svg>',
+    change: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="currentColor"/></svg>',
+    delay: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8 11.4 10.8H.6Z" fill="currentColor"/></svg>',
+    stop: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.9.6h4.2l3.3 3.3v4.2l-3.3 3.3H3.9L.6 8.1V3.9Z" fill="currentColor"/></svg>',
+    off: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.6 6h4.8" stroke="currentColor" stroke-width="1.5"/></svg>',
+  };
+  const GLYPHS = {
+    accessible: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7.6" cy="2.4" r="1.6"/><path d="M6.6 4.6h1.8v3.1h3.3l1.7 4.4-1.5.6-1.3-3.3H6.6Z"/><path d="M5.2 7.4a3.9 3.9 0 1 0 5.5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+    bus: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M3 1.5h10a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-.5v1.5h-2V13h-5v1.5h-2V13H3a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1Zm.6 1.6v3.6h8.8V3.1ZM4.6 9.2a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Zm6.8 0a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Z"/></svg>',
+  };
+
+  const SEV = {
+    ok: { rank: 0, color: "var(--sev-ok)", legend: "Good service" },
+    info: { rank: 1, color: "var(--sev-info)", legend: "Notice" },
+    change: { rank: 2, color: "var(--sev-change)", legend: "Service change" },
+    delay: { rank: 3, color: "var(--sev-delay)", legend: "Delays" },
+    stop: { rank: 4, color: "var(--sev-stop)", legend: "Suspended" },
+    off: { rank: -1, color: "var(--sev-off)", legend: "Not running now" },
+  };
+
+  const fmtTime = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+  const fmtDay = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" });
+  const fmtWeekday = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "long" });
+  const fmtParts = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" });
+  const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  let DATA = SNAPSHOT;
+  let live = false;
+  let firstAttemptDone = !window.SubwayCore;
+  let lastFailure = null;
+  let refreshTimer = 0;
+  let nextRefreshAt = 0;
+  let openKeys = new Set();
+  const cache = {};
+
+  const $ = (id) => document.getElementById(id);
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function spoken(id) {
+    if (SPOKEN[id]) return SPOKEN[id];
+    return EXPRESS.has(id) ? `${id[0]} express train` : `${id} train`;
+  }
+
+  function bullet(id, size) {
+    const label = EXPRESS.has(id) ? id[0] : id === "GS" ? "S" : id;
+    const n = el("span", ["bullet", size, EXPRESS.has(id) && "express", label.length > 2 && "long"].filter(Boolean).join(" "));
+    n.style.setProperty("--line-bg", LINE_COLORS[id] || "#7C858C");
+    n.style.setProperty("--line-fg", DARK_TEXT.has(id) ? "#000000" : "#FFFFFF");
+    n.setAttribute("role", "img");
+    n.setAttribute("aria-label", spoken(id));
+    n.append(el("span", "", label));
+    return n;
+  }
+
+  function glyph(kind, label) {
+    const n = el("span", `glyph ${kind}`);
+    n.innerHTML = GLYPHS[kind];
+    n.setAttribute("role", "img");
+    n.setAttribute("aria-label", label);
+    return n;
+  }
+
+  function tokenNode(raw) {
+    const tok = raw.trim();
+    if (LINE_COLORS[tok]) return bullet(tok, "inline");
+    if (/accessib/i.test(tok)) return glyph("accessible", "Accessible station");
+    if (/shuttle bus/i.test(tok)) return glyph("bus", "Shuttle bus");
+    return document.createTextNode(`[${tok}]`);
+  }
+
+  function appendRich(target, text) {
+    let last = 0;
+    for (const m of text.matchAll(/\[([^\]]+)\]/g)) {
+      if (m.index > last) target.append(text.slice(last, m.index));
+      target.append(tokenNode(m[1]));
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) target.append(text.slice(last));
+  }
+
+  function appendDescription(target, text) {
+    for (const raw of text.split("\n")) {
+      const line = raw.trim();
+      if (!line) continue;
+      const p = el("p", line.length < 48 && /[?:]$/.test(line) ? "desc-label" : "");
+      appendRich(p, line);
+      target.append(p);
+    }
+  }
+
+  function nyClock(ms) {
+    const parts = Object.fromEntries(fmtParts.formatToParts(ms).map((p) => [p.type, p.value]));
+    return { day: WEEKDAYS.indexOf(parts.weekday), minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) };
+  }
+
+  function at(ms, now) {
+    const d = fmtDay.format(ms);
+    const t = fmtTime.format(ms);
+    if (d === fmtDay.format(now)) return t;
+    if (d === fmtDay.format(now + DAY)) return `tomorrow ${t}`;
+    if (d === fmtDay.format(now - DAY)) return `yesterday ${t}`;
+    if (Math.abs(ms - now) < 6 * DAY) return `${fmtWeekday.format(ms)} ${t}`;
+    return `${d}, ${t}`;
+  }
+
+  function ago(ms) {
+    const m = Math.round(ms / MINUTE);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    if (h < 48) return `${h} hr ago`;
+    return `${Math.round(h / 24)} days ago`;
+  }
+
+  function minsAway(ms, now) {
+    const s = ms - now;
+    return s < 45 * SECOND ? "Now" : `${Math.round(s / MINUTE)} min`;
+  }
+
+  const fetchedTime = () => (DATA.fetchedAt || 0) * SECOND;
+  const alertsTime = () => (DATA.alertsAt || DATA.fetchedAt || 0) * SECOND;
+  const trainsTime = () => (DATA.arrivalsAt || 0) * SECOND;
+  const trainsUsable = (now) => trainsTime() > 0 && now - trainsTime() <= STALE_TRAINS;
+
+  function toMinutes(hhmm) {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function hoursFor(station, line) {
+    const key = station.hours && station.hours[line];
+    return key ? DATA.hours[key] : null;
+  }
+
+  function isScheduled(station, line, now) {
+    const hours = hoursFor(station, line);
+    if (!hours) return true;
+    const { day, minutes } = nyClock(now);
+    return hours.windows.some((w) => w.days.includes(String(day)) && toMinutes(w.from) <= minutes && minutes < toMinutes(w.to));
+  }
+
+  function trainsDue(station, line, now) {
+    if (!trainsUsable(now)) return false;
+    return station.platforms.some((p) =>
+      ["N", "S"].some((dir) =>
+        ((DATA.arrivals[p.stop] || {})[dir] || []).some(
+          (x) => (LINE_ALIASES[x.line] || x.line) === line && x.t * SECOND - now < 20 * MINUTE
+        )
+      )
+    );
+  }
+
+  function sevOf(type) {
+    const t = type.toLowerCase();
+    if (/suspend|no scheduled service/.test(t)) return "stop";
+    if (/delay|slow speed/.test(t)) return "delay";
+    if (/extra service|special schedule|station notice|information|weekday service|weekend service|special event/.test(t)) return "info";
+    return "change";
+  }
+
+  function typeLabel(type) {
+    const t = type.replace(/^planned\s*-\s*/i, "").trim();
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  }
+
+  function currentPeriod(alert, now) {
+    return alert.periods.find(([s, e]) => s * SECOND <= now && (e === null || now < e * SECOND));
+  }
+
+  function nextStart(alert, now) {
+    const p = alert.periods.find(([s]) => s * SECOND > now);
+    return p ? p[0] * SECOND : null;
+  }
+
+  function scopeOf(alert, station, line) {
+    if (alert.wholeLine.includes(line)) return "line";
+    const stops = alert.stopsByLine[line] || [];
+    return stops.some((s) => station.stops.includes(s)) ? "here" : "elsewhere";
+  }
+
+  function lineState(station, line, now) {
+    const active = [];
+    const upcoming = [];
+    for (const a of DATA.alerts) {
+      if (!a.lines.includes(line)) continue;
+      const scope = scopeOf(a, station, line);
+      const sev = sevOf(a.type);
+      const period = currentPeriod(a, now);
+      if (period) {
+        active.push({ a, scope, sev, period });
+        continue;
+      }
+      if (scope === "elsewhere") continue;
+      const start = nextStart(a, now);
+      if (start && start - now <= DAY) upcoming.push({ a, scope, sev, start });
+    }
+    const byRank = (x, y) => SEV[y.sev].rank - SEV[x.sev].rank;
+    const here = active.filter((x) => x.scope !== "elsewhere").sort(byRank);
+    const elsewhere = active.filter((x) => x.scope === "elsewhere").sort(byRank);
+    upcoming.sort((x, y) => x.start - y.start);
+    const running = isScheduled(station, line, now) || trainsDue(station, line, now);
+    let status;
+    if (!running) status = { sev: "off", label: "Not running now" };
+    else if (here.length) status = { sev: here[0].sev, label: typeLabel(here[0].a.type) };
+    else status = { sev: "ok", label: "Good service" };
+    return { line, here, elsewhere, upcoming, hours: hoursFor(station, line), status };
+  }
+
+  function details(key, summaryText, cls) {
+    const d = el("details", cls);
+    d.dataset.key = key;
+    if (openKeys.has(key)) d.open = true;
+    d.append(el("summary", "", summaryText));
+    return d;
+  }
+
+  function alertItem(item, keyBase, now, staleAlerts, mode) {
+    const { a, scope, sev } = item;
+    const li = el("li", "alert");
+    li.style.setProperty("--sev", SEV[sev].color);
+
+    const meta = el("p", "alert-meta");
+    meta.append(el("span", "alert-type", typeLabel(a.type)));
+    meta.append(el("span", "alert-kind", a.kind === "planned" ? "Planned work" : "Live alert"));
+    if (scope === "here") meta.append(el("span", "tag", "At this station"));
+    if (scope === "line") meta.append(el("span", "tag", "Whole line"));
+
+    const head = el("p", "alert-head");
+    a.header.split("\n").forEach((line, i) => {
+      if (i) head.append(document.createElement("br"));
+      appendRich(head, line.trim());
+    });
+
+    const when = el("p", "alert-when");
+    if (mode === "upcoming") {
+      when.append(el("span", "time", `Starts ${at(item.start, now)}`));
+    } else if (a.kind === "live") {
+      when.append(el("span", "time", `Reported ${at(a.updated * SECOND, now)}`));
+      if (staleAlerts) when.append(", may have cleared since");
+    } else {
+      const end = item.period[1];
+      when.append(el("span", "time", end ? `Until ${at(end * SECOND, now)}` : "Until further notice"));
+    }
+    if (a.when) when.append(` · ${a.when}`);
+
+    li.append(meta, head, when);
+    if (a.description) {
+      const d = details(`${keyBase}:${mode}:${a.id}`, "Details", "alert-more");
+      const desc = el("div", "desc");
+      appendDescription(desc, a.description);
+      d.append(desc);
+      li.append(d);
+    }
+    return li;
+  }
+
+  function alertList(items, keyBase, now, staleAlerts, mode) {
+    const ul = el("ul", "alerts");
+    for (const item of items) ul.append(alertItem(item, keyBase, now, staleAlerts, mode));
+    return ul;
+  }
+
+  function renderLine(station, st, now, staleAlerts) {
+    const keyBase = `${station.id}:${st.line}`;
+    const li = el("li", "line");
+    li.append(bullet(st.line));
+
+    const body = el("div", "line-body");
+    const status = el("p", "status");
+    const label = el("span", "status-label");
+    label.style.setProperty("--sev", SEV[st.status.sev].color);
+    label.innerHTML = ICONS[st.status.sev];
+    label.append(st.status.label);
+    status.append(label);
+    let note = "";
+    if (st.status.sev === "off" && st.hours) note = st.hours.note;
+    else if (st.here.length > 1) note = `and ${st.here.length - 1} more ${st.here.length === 2 ? "change" : "changes"} at this station`;
+    if (note) status.append(el("span", "status-note", note));
+    body.append(status);
+
+    if (st.here.length) body.append(alertList(st.here, keyBase, now, staleAlerts, "active"));
+
+    if (st.elsewhere.length) {
+      const n = st.elsewhere.length;
+      const text = n === 1 ? `${typeLabel(st.elsewhere[0].a.type)} elsewhere on the line` : `${n} changes elsewhere on the line`;
+      const d = details(`${keyBase}:elsewhere`, text, "fold");
+      d.append(alertList(st.elsewhere, keyBase, now, staleAlerts, "active"));
+      body.append(d);
+    }
+
+    if (st.upcoming.length) {
+      const n = st.upcoming.length;
+      const d = details(`${keyBase}:upcoming`, `${n} planned ${n === 1 ? "change" : "changes"} in the next 24 hours`, "fold");
+      d.append(alertList(st.upcoming, keyBase, now, staleAlerts, "upcoming"));
+      body.append(d);
+    }
+
+    li.append(body);
+    return li;
+  }
+
+  function renderBoard(station, now) {
+    const board = el("div", "countdown");
+    board.id = `${station.id}-trains`;
+    board.append(el("h3", "countdown-title", "Next trains"));
+    const t = trainsTime();
+    if (!trainsUsable(now)) {
+      let msg = "Train times haven't loaded yet.";
+      if (t && live) msg = `Train times are out of date (last received ${at(t, now)}). Trying again every minute.`;
+      else if (t && firstAttemptDone) msg = `Live train times aren't available in this copy of the page. Its last times are from ${at(t, now)}.`;
+      board.append(el("p", "board-note", msg));
+      return board;
+    }
+    const platforms = el("div", "platforms");
+    for (const p of station.platforms) {
+      const pair = el("div", "platform-pair");
+      for (const dir of ["N", "S"]) {
+        if (!p[dir]) continue;
+        const sec = el("section", "platform");
+        const head = el("div", "platform-head");
+        head.append(el("h4", "platform-dir", p[dir]));
+        const lines = el("div", "platform-lines");
+        for (const l of p.lines) lines.append(bullet(l, "xs"));
+        head.append(lines);
+        const list = el("ol", "trains");
+        const trains = ((DATA.arrivals[p.stop] || {})[dir] || [])
+          .filter((x) => x.t * SECOND >= now - 30 * SECOND)
+          .slice(0, TRAINS_SHOWN);
+        if (!trains.length) list.append(el("li", "board-empty", "No trains due in the next 90 minutes"));
+        for (const x of trains) {
+          const li = el("li", x.scheduled ? "train scheduled" : "train");
+          li.append(bullet(x.line, "sm"), el("span", "dest", x.dest || "–"), el("span", "mins", minsAway(x.t * SECOND, now)));
+          if (x.scheduled) li.append(el("span", "sr-only", "scheduled, not yet assigned a train"));
+          list.append(li);
+        }
+        sec.append(head, list);
+        pair.append(sec);
+      }
+      platforms.append(pair);
+    }
+    board.append(platforms);
+    return board;
+  }
+
+  function summaryText(states) {
+    const n = states.length;
+    const changed = states.filter((s) => SEV[s.status.sev].rank >= 2).length;
+    const off = states.filter((s) => s.status.sev === "off").length;
+    if (!changed && !off) return n === 1 ? `Good service on the ${states[0].line}` : `Good service on all ${n} lines`;
+    const parts = [];
+    if (changed) parts.push(`${changed} ${changed === 1 ? "line" : "lines"} with changes`);
+    if (off) parts.push(`${off} not running at this hour`);
+    return parts.join(" · ");
+  }
+
+  function renderSummaryCard(station, states) {
+    const a = el("a", "summary-card");
+    a.href = `#${station.id}`;
+    const head = el("div", "summary-head");
+    head.append(el("span", "summary-name", station.name), el("span", "borough", station.borough));
+    const lines = el("div", "summary-lines");
+    for (const st of states) {
+      const mini = el("span", "mini");
+      mini.setAttribute("role", "img");
+      mini.setAttribute("aria-label", `${spoken(st.line)}: ${st.status.label}`);
+      const b = bullet(st.line, "sm");
+      b.removeAttribute("role");
+      b.removeAttribute("aria-label");
+      const mark = el("span", "mark");
+      mark.style.setProperty("--sev", SEV[st.status.sev].color);
+      mark.innerHTML = ICONS[st.status.sev];
+      mini.append(b, mark);
+      lines.append(mini);
+    }
+    a.append(head, lines, el("p", "summary-text", summaryText(states)));
+    return a;
+  }
+
+  function renderStation(station, states, now, staleAlerts) {
+    const sec = el("section", "station");
+    sec.id = station.id;
+    sec.setAttribute("aria-labelledby", `${station.id}-name`);
+
+    const sign = el("header", "sign");
+    const title = el("div", "sign-title");
+    const name = el("h2", "sign-name", station.name);
+    name.id = `${station.id}-name`;
+    title.append(name, el("p", "borough", station.borough));
+    const bullets = el("div", "sign-bullets");
+    for (const line of station.lines) bullets.append(bullet(line));
+    sign.append(title, bullets);
+
+    const board = el("div", "board");
+    board.append(el("h3", "board-title", "Service by line"));
+    const lines = el("ul", "lines");
+    for (const st of states) lines.append(renderLine(station, st, now, staleAlerts));
+    board.append(lines);
+
+    sec.append(sign, renderBoard(station, now), board);
+    return sec;
+  }
+
+  function renderLegend() {
+    const legend = $("legend");
+    legend.replaceChildren();
+    for (const key of ["ok", "change", "delay", "stop", "info", "off"]) {
+      const s = el("span");
+      s.style.setProperty("--sev", SEV[key].color);
+      s.innerHTML = ICONS[key];
+      s.append(SEV[key].legend);
+      legend.append(s);
+    }
+  }
+
+  function updateClock(now) {
+    const fetched = fetchedTime();
+    $("now-time").textContent = `${fmtTime.format(now)}, ${fmtDay.format(now)}`;
+    $("fetched-time").textContent = fetched ? at(fetched, now) : "–";
+    $("fetched-age").textContent = fetched ? ago(now - fetched) : "";
+    $("mode").className = live ? "clock-mode live" : "clock-mode";
+    $("mode-text").textContent = live
+      ? "Live, refreshes every minute"
+      : firstAttemptDone ? "Snapshot, doesn't refresh" : "Connecting to the MTA…";
+  }
+
+  function renderNotice(now) {
+    const box = $("notice");
+    const fetched = fetchedTime();
+    let text = "";
+    if (!fetched && firstAttemptDone) {
+      text = "No MTA data has been loaded into this page yet.";
+    } else if (live && lastFailure) {
+      text = `Couldn't load ${lastFailure.sources.join(", ")} from the MTA at ${at(lastFailure.at, now)}. Showing the most recent data received; trying again every minute.`;
+    } else if (!live && firstAttemptDone && now - alertsTime() > STALE_ALERTS) {
+      text = `This copy of the page is a snapshot from ${at(fetched, now)} and can't refresh itself. Delays reported since then aren't shown, but planned work still follows its published schedule.`;
+    }
+    box.hidden = !text;
+    if (!text) return;
+    box.innerHTML = ICONS.delay;
+    const p = el("p", "", text);
+    if (!live && LIVE_URL) {
+      const link = el("a", "", "Open the live page");
+      link.href = LIVE_URL;
+      p.append(" ", link, ".");
+    }
+    box.append(p);
+  }
+
+  function render() {
+    const now = Date.now();
+    const focused = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest("details[data-key]")
+      : null;
+    const focusKey = focused ? focused.dataset.key : null;
+    openKeys = new Set([...document.querySelectorAll("details[open][data-key]")].map((d) => d.dataset.key));
+    const staleAlerts = now - alertsTime() > STALE_ALERTS;
+
+    updateClock(now);
+    renderNotice(now);
+
+    const names = DATA.stations.map((s) => s.name);
+    if (names.length) {
+      const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+      $("lede").textContent = `Next trains and the status of every line at ${list}.`;
+    }
+
+    const summary = $("summary");
+    const stations = $("stations");
+    summary.replaceChildren();
+    stations.replaceChildren();
+    for (const station of DATA.stations) {
+      const states = station.lines.map((line) => lineState(station, line, now));
+      summary.append(renderSummaryCard(station, states));
+      stations.append(renderStation(station, states, now, staleAlerts));
+    }
+
+    if (focusKey) {
+      const d = [...document.querySelectorAll("details[data-key]")].find((x) => x.dataset.key === focusKey);
+      if (d) d.querySelector("summary").focus({ preventScroll: true });
+    }
+  }
+
+  function tick() {
+    const now = Date.now();
+    updateClock(now);
+    for (const station of DATA.stations) {
+      const old = $(`${station.id}-trains`);
+      if (old) old.replaceWith(renderBoard(station, now));
+    }
+  }
+
+  async function refresh() {
+    clearTimeout(refreshTimer);
+    try {
+      const result = await window.SubwayCore.loadData((url, opts) => fetch(url, opts), cache);
+      if (result.ok) {
+        DATA = result;
+        live = true;
+      }
+      lastFailure = result.failed.length
+        ? { at: Date.now(), sources: result.failed.map((f) => f.source) }
+        : null;
+    } catch (err) {
+      lastFailure = { at: Date.now(), sources: ["data"] };
+    }
+    firstAttemptDone = true;
+    render();
+    const delay = live ? REFRESH_EVERY : RETRY_WHEN_UNREACHABLE;
+    nextRefreshAt = Date.now() + delay;
+    refreshTimer = setTimeout(refresh, delay);
+  }
+
+  renderLegend();
+  render();
+  const target = location.hash && $(location.hash.slice(1));
+  if (target) target.scrollIntoView();
+  if (window.SubwayCore) refresh();
+  setInterval(tick, TICK_EVERY);
+  setInterval(() => {
+    if (!live) render();
+  }, MINUTE);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    if (window.SubwayCore && live && Date.now() >= nextRefreshAt) refresh();
+    else render();
+  });
+})();
+</script>
+</body>
+</html>
